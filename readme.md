@@ -2,7 +2,7 @@
 
 GridPulse is an enterprise-grade, end-to-end IoT data engineering pipeline and real-time analytical platform built for monitoring, analyzing, forecasting, and mitigating power grid telemetry across a university campus.
 
-The platform evolves through **6 architectural phases**, transitioning from synthetic batch telemetry to a distributed streaming Lambda/Kappa architecture, cold-path Parquet Data Lakehouse, and prescriptive AI peak-shaving automation.
+The platform evolves through **10 architectural phases**, transitioning from synthetic batch telemetry to a distributed streaming Lambda/Kappa architecture, cold-path Parquet Data Lakehouse, predictive AI automation, ACID Delta table formats, workflow orchestration, and cloud object storage emulation.
 
 ---
 
@@ -25,6 +25,7 @@ The platform evolves through **6 architectural phases**, transitioning from synt
 | **Phase 7** | **Enterprise Medallion Lakehouse & dbt** | ✅ Complete | dbt-duckdb, DuckDB, Jinja, Data Contracts | Bronze/Silver/Gold ELT models, 34 data contract assertions, dimensional enrichment, curated analytical marts |
 | **Phase 8** | **ACID Lakehouse Table Format & Time-Travel** | ✅ Complete | Delta Lake (`deltalake`), DuckDB, PyArrow | Atomic commits (`_delta_log`), time-travel snapshots, dynamic schema evolution (`ambient_temp_c`), native OPTIMIZE compaction |
 | **Phase 9** | **Workflow Orchestration & Pipeline Automation** | ✅ Complete | Apache Airflow 2.x, Python, Docker, Slack Webhooks | 5-stage production DAG, telemetry freshness checks, Delta OPTIMIZE compaction, dbt tests, automated AI retraining, SLA observability |
+| **Phase 10** | **Cloud Object Storage Emulation (MinIO S3)** | ✅ Complete | MinIO, AWS S3 API, Boto3, DuckDB S3 | Cloud S3 lakehouse endpoint (`s3://gridpulse-lakehouse`), multi-part streaming commits, date-partitioned S3 sync, lifecycle storage tiering (`STANDARD` ➔ `GLACIER`), resilient local-fallback execution |
 
 ---
 
@@ -114,14 +115,29 @@ python orchestration/pipeline_runner.py --run-all
 ```
 *Orchestrates telemetry freshness checks, Delta Lake OPTIMIZE compaction, dbt transformations & 34 contract tests, 24h AI demand forecaster retraining, and SLA observability alerting.*
 
+### 7. Cloud S3 Object Storage Emulation (MinIO)
+Launch local S3 emulation with MinIO and sync lakehouse partitions:
+```powershell
+# Check S3 endpoint connectivity and bucket status
+python scripts/sync_to_s3.py --status
+
+# Synchronize all Parquet partitions & Delta logs to MinIO S3
+python scripts/sync_to_s3.py --sync-all
+
+# Execute vectorized analytical SQL directly over S3 objects via DuckDB
+python scripts/sync_to_s3.py --query-s3
+```
+*MinIO Web Console is available at `http://localhost:9001` (Credentials: `minioadmin` / `minioadmin`).*
+
 ---
 
 ## 🧪 Automated Testing
 
-Run the automated test suite covering all 9 architectural phases (34 tests + 34 dbt contract assertions = 68 validation gates):
+Run the automated test suite covering all 10 architectural phases (41 tests + 34 dbt contract assertions = 75 validation gates):
 ```powershell
 python -m unittest discover -s tests -v
 ```
+- ✅ `test_s3_lakehouse.py`: MinIO S3 connectivity, bucket provisioning, multi-part streaming uploads, date-partitioned sync, DuckDB S3 querying with zero-downtime fallback, and storage tier lifecycle transitions.
 - ✅ `test_orchestration.py`: Apache Airflow DAG topology, task isolation, latency SLA budgets, and run persistence.
 - ✅ `test_delta_lakehouse.py`: Delta Lake ACID commits, `_delta_log` audit integrity, schema evolution (`ambient_temp_c`), time-travel queries, and native `OPTIMIZE` in-place compaction.
 - ✅ `test_dbt.py`: Medallion layers compilation, 34 schema contract tests, DuckDB objects verification, and Gold mart KPIs sanity.
@@ -133,6 +149,7 @@ python -m unittest discover -s tests -v
 ---
 
 ## 🛠️ Optimization & Engineering Highlights
+- **Cloud Object Storage Emulation (S3 API):** Integrated high-performance S3 emulation with MinIO, enabling zero-cloud-cost enterprise testing of S3 multi-part commits, date-partitioned lakehouse sync, automated lifecycle tiering (hot STANDARD to cold GLACIER), and DuckDB vectorized SQL over `s3://` URIs with zero-downtime fallback.
 - **Workflow Orchestration & SLA Alerting:** Orchestrated end-to-end ELT pipelines in Apache Airflow managing telemetry freshness validation, 6-hour lakehouse compaction, and automated ML model retraining with zero downtime and real-time Slack alerting.
 - **ACID Lakehouse Table Format:** Engineered an ACID Data Lakehouse using Delta Lake over partitioned Parquet; implemented time-travel snapshot auditing and schema evolution (`ambient_temp_c`), reducing cold-path scan latencies by 70% with DuckDB vectorization.
 - **Columnar Speedup:** DuckDB scanned 18,522 records directly over Parquet partitions in **5.33 ms** compared to **2,389 ms** in PostgreSQL — a **448.2x speedup** for historical analytics.

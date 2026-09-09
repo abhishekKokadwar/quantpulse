@@ -716,6 +716,67 @@ with tab_lakehouse:
                 if commit_history:
                     st.dataframe(pd.DataFrame(commit_history), use_container_width=True, hide_index=True)
 
+        # ---------------------------------------------------------
+        # Phase 10: Cloud S3 Object Storage (MinIO Emulation)
+        # ---------------------------------------------------------
+        st.markdown("---")
+        st.markdown("#### ☁️ Phase 10: Cloud S3 Object Storage (MinIO Emulation)")
+        st.caption("S3-compatible distributed object storage gateway (`s3://gridpulse-lakehouse/`) simulating AWS S3 / Google Cloud Storage.")
+
+        from analysis.s3_lakehouse import get_s3_lakehouse
+        s3_mgr = get_s3_lakehouse()
+        s3_stats = s3_mgr.get_s3_lakehouse_stats()
+
+        # S3 Connection & Health Banner
+        col_s3_h1, col_s3_h2, col_s3_h3, col_s3_h4 = st.columns(4)
+        with col_s3_h1:
+            conn_status = "🟢 S3 GATEWAY ONLINE" if s3_stats["connected"] else "🟡 LOCAL EMULATION"
+            st.metric("S3 Endpoint Status", conn_status, delta=s3_stats["endpoint_url"])
+        with col_s3_h2:
+            st.metric("Target S3 Bucket", s3_stats["bucket_name"], delta="Standard S3 API")
+        with col_s3_h3:
+            st.metric("Total S3 Objects", f"{s3_stats['total_objects']} objects", delta=f"{s3_stats.get('total_mb', 0)} MB")
+        with col_s3_h4:
+            st.metric("Active S3 Prefixes", len(s3_stats.get("prefixes", [])), delta=", ".join(s3_stats.get("prefixes", [])) or "None")
+
+        # Action Buttons
+        c_s3_act1, c_s3_act2, c_s3_act3 = st.columns(3)
+        with c_s3_act1:
+            if st.button("📤 Synchronize Lakehouse to S3 Bucket", use_container_width=True):
+                with st.spinner("Syncing local Parquet lake partitions to S3 Object Store..."):
+                    sync_res = s3_mgr.sync_local_lake_to_s3()
+                    if sync_res.get("status") in ("SUCCESS", "PARTIAL_SUCCESS"):
+                        st.success(f"Uploaded {sync_res.get('uploaded_files', 0)} files ({round(sync_res.get('total_bytes', 0)/1024, 1)} KB) to s3://{s3_mgr.bucket_name} in {sync_res.get('elapsed_seconds')}s!")
+                    else:
+                        st.info(f"Sync status: {sync_res.get('status')} - {sync_res.get('message')}")
+                    time.sleep(1)
+                    st.rerun()
+        with c_s3_act2:
+            if st.button("❄️ Simulate S3 Lifecycle Tiering", use_container_width=True):
+                with st.spinner("Simulating S3 Lifecycle transitions to cold archive tier..."):
+                    tier_res = s3_mgr.simulate_lifecycle_tiering()
+                    st.success(f"Lifecycle policy executed: {tier_res.get('objects_transitioned', 0)} objects transitioned to {tier_res.get('target_prefix', 'archive/')}")
+                    time.sleep(1)
+                    st.rerun()
+        with c_s3_act3:
+            st.markdown(
+                '<div style="text-align: center; padding-top: 5px;">'
+                '<a href="http://localhost:9001" target="_blank" style="text-decoration: none;">'
+                '<button style="width: 100%; background: #0284c7; color: white; border: none; border-radius: 8px; padding: 8px 16px; font-weight: 600; cursor: pointer;">'
+                '🌐 Open MinIO S3 Console (:9001)'
+                '</button></a></div>',
+                unsafe_allow_html=True,
+            )
+
+        # S3 Object Explorer
+        s3_objs = s3_mgr.list_s3_objects(max_keys=25)
+        if s3_objs:
+            st.markdown("##### 📁 S3 Object Store Explorer (`s3://gridpulse-lakehouse/`)")
+            df_s3 = pd.DataFrame(s3_objs)[["key", "size_kb", "storage_class", "last_modified"]]
+            st.dataframe(df_s3, use_container_width=True, hide_index=True)
+        else:
+            st.caption("ℹ️ MinIO S3 objects will appear here once the local MinIO container is running (`docker-compose up -d minio minio-init`) and synchronized.")
+
 # ---------------------------------------------------------
 # Tab 2: Phase 6 AI Forecasting & Automated Dispatch
 # ---------------------------------------------------------
