@@ -26,6 +26,9 @@ The platform has completed **Phases 1, 2, 3, 4, 5, and 6**. High-frequency telem
 | **Phase 6** | **Predictive AI, Forecasting & Automated Dispatch** | Scikit-Learn, Random Forest, Fourier Cyclical Encodings, Webhooks | **Completed** | 24h ahead load forecast (95% CI), 3-tier automated peak-shaving dispatch, webhook alerts |
 | **Phase 7** | **Enterprise Medallion Lakehouse & dbt ELT** | dbt-duckdb, DuckDB, Parquet, Jinja, Data Contracts | **Completed** | Bronze/Silver/Gold layered models, 34 data contract assertions, dimensional enrichment, curated analytical marts |
 | **Phase 8** | **ACID Lakehouse Table Format (Delta Lake)** | deltalake, DuckDB, PyArrow, Rust ACID Log | **Completed** | Atomic commits (_delta_log), time-travel snapshots, schema evolution (ambient_temp_c), in-place OPTIMIZE compaction |
+| **Phase 9** | **Workflow Orchestration & Pipeline Automation** | Apache Airflow 2.x, Python, Docker, Slack Webhooks | **Completed** | Directed Acyclic Graphs (DAGs), sensor freshness checks, Delta OPTIMIZE compaction, dbt test runs, automated model retraining, SLA miss alerts |
+| **Phase 10** | **Cloud Object Storage Emulation (MinIO / S3 API)** | MinIO, S3A connector, PySpark, DuckDB, Docker | **Planned** | S3-compatible distributed object store (`s3a://gridpulse-lakehouse`), multipart streaming commits, bucket lifecycle tiering |
+| **Phase 11** | **Data Quality, Quarantine & Observability** | Great Expectations / Soda Core, DLQ, Python | **Planned** | Production expectation suites, dead-letter queue (DLQ) routing, automated sensor corruption quarantine & incident escalation |
 
 ---
 
@@ -39,7 +42,12 @@ timeline
     Phase 3 : Apache Kafka Event Broker : Multi-Tier ML Anomaly Engine : Decoupled Telemetry Ingestion
     Phase 4 : Spark Structured Streaming : 5-Min Sliding Windows : Real-Time Streamlit Fragment UI
     Phase 5 : Partitioned Parquet Lakehouse : DuckDB Vectorized SQL Engine : Micro-Batch Compactor : Lake Explorer UI
-    Phase 6 (OPERATIONAL) : 24h Recursive AI Forecasting : 3-Tier Peak Shaving Dispatch : Automated Incident Webhooks : Dispatch UI
+    Phase 6 : 24h Recursive AI Forecasting : 3-Tier Peak Shaving Dispatch : Automated Incident Webhooks : Dispatch UI
+    Phase 7 : Enterprise Medallion Lakehouse : dbt Bronze-Silver-Gold : 34 Data Contracts
+    Phase 8 : ACID Delta Lakehouse : Time Travel Snapshots : Schema Evolution : In-Place OPTIMIZE
+    Phase 9 : Apache Airflow Orchestration : Automated Sensor Freshness & SLA Alerting
+    Phase 10 (PLANNED) : Cloud S3 Object Storage (MinIO) : Multi-Part Streaming Commits
+    Phase 11 (PLANNED) : Great Expectations Data Observability : Dead-Letter Quarantine (DLQ)
 ```
 
 ---
@@ -240,3 +248,105 @@ streamlit run dashboard/app.py
 - **⚡ Tab 0 (Phase 4):** Real-Time Streaming Sliding Windows
 - **🧊 Tab 1 (Phase 5):** Columnar Data Lakehouse Explorer (DuckDB & Parquet)
 - **🔮 Tab 2 (Phase 6):** AI Predictive Forecasting, Automated Dispatch & Webhooks
+
+---
+
+### 🟢 Phase 9: Workflow Orchestration & Pipeline Automation (Apache Airflow 2.x)
+- **Objective:** Establish production-grade pipeline automation, moving from manual scripts to an orchestrated Directed Acyclic Graph (DAG) managing sensor freshness verification, lakehouse in-place compaction, dbt Medallion ELT, 24h AI retraining, and real-time SLA latency observability alerting.
+- **Current Operational State:** **COMPLETED & OPERATIONAL**
+- **Resume Impact:** ⭐⭐⭐⭐⭐ *(Proves you understand production operations beyond one-off scripts)*
+- **Implemented Components:**
+  - **Apache Airflow 2.x Production DAG ([`orchestration/dags/gridpulse_orchestrator_dag.py`](file:///d:/SEM%207/IOTBD/GridPulse/orchestration/dags/gridpulse_orchestrator_dag.py)):**
+    - Orchestrator DAG with `*/15 * * * *` schedule interval and strict topological dependencies:
+      `sensor_freshness_task >> lakehouse_compaction_task >> dbt_run_and_test_task >> [model_retrain_task, sla_miss_alert_task]`.
+    - Integrated `on_failure_callback` and `sla_miss_callback` delivering structured incident cards to Slack/Teams webhooks.
+  - **Modular Orchestration Tasks ([`orchestration/tasks/`](file:///d:/SEM%207/IOTBD/GridPulse/orchestration/tasks)):**
+    - `check_sensor_freshness`: Validates PostgreSQL / Delta Lake max timestamp lag against a 15-minute threshold.
+    - `run_lakehouse_compaction`: Triggers native Delta `OPTIMIZE` in-place compaction and Parquet coalescing.
+    - `run_dbt_elt_and_tests`: Programmatically runs `dbt seed`, `dbt run` (Bronze/Silver/Gold), and validates all 34 contract assertions.
+    - `retrain_forecaster_model`: Periodically retrains the 24-hour demand forecaster using chronological splits and validates regression gates ($MAE \le 120\text{ kW}, RMSE \le 160\text{ kW}, MAPE \le 25\%$).
+    - `evaluate_sla_and_alert`: Tracks stage execution durations against latency budgets and triggers external webhook alerts.
+  - **Standalone Pipeline Runner CLI ([`orchestration/pipeline_runner.py`](file:///d:/SEM%207/IOTBD/GridPulse/orchestration/pipeline_runner.py)):**
+    - Native Python runner executing the DAG locally on Windows/Linux without external daemon dependencies.
+    - Tracks run history, stage elapsed times, and SLA compliance in `data/orchestration/runs.json`.
+  - **Docker Compose Airflow Stack ([`docker-compose.airflow.yml`](file:///d:/SEM%207/IOTBD/GridPulse/docker-compose.airflow.yml)):**
+    - Complete multi-container Airflow 2.8.3 deployment (`airflow-webserver:8088`, `airflow-scheduler`, `postgres-airflow`).
+  - **Interactive Streamlit Orchestration Portal ([`dashboard/app.py`](file:///d:/SEM%207/IOTBD/GridPulse/dashboard/app.py)):**
+    - Dedicated tab: **"⏱️ Pipeline Orchestration & DAG (Airflow)"**.
+    - Interactive "Trigger DAG Run" launcher, visual DAG Mermaid topology, KPI cards, Altair latency vs SLA budget bar chart, and recent execution audit history table.
+  - **Automated Verification Suite ([`tests/test_orchestration.py`](file:///d:/SEM%207/IOTBD/GridPulse/tests/test_orchestration.py)):**
+    - 7 comprehensive unit/integration tests validating DAG integrity, task execution, SLA budget enforcement, and run persistence (100% pass rate).
+- **Resume Bullet:**
+  > *"Orchestrated end-to-end ELT pipelines in Apache Airflow managing partition maintenance, 6-hour lakehouse compaction, and automated ML model retraining with zero downtime."*
+
+---
+
+### 🟡 Phase 10: Cloud Object Storage Emulation with MinIO (S3 API)
+- **Resume Impact:** ⭐⭐⭐⭐ *(Demonstrates cloud-native data lake architecture)*
+- **The Concept:**
+  Currently, Parquet and Delta Lake files live on the local file system (`data/lake/` and `data/lakehouse/`). By placing an S3-compatible MinIO container in between, the pipeline uses the exact same `s3a://` and S3 SDK protocols that AWS S3 or Google Cloud Storage (GCS) use in enterprise clouds.
+- **How to Implement:**
+  - Add MinIO object store to `docker-compose.yml`.
+  - Configure PySpark and DuckDB to read/write using `s3a://gridpulse-lakehouse/...` with standard IAM / access key credentials.
+  - Demonstrate multi-part streaming uploads and bucket lifecycle management (e.g., transitioning 30-day-old telemetry to cold archive tier).
+- **Resume Bullet:**
+  > *"Configured S3-compatible MinIO object storage to simulate an enterprise cloud lakehouse; integrated PySpark s3a:// multipart commits and partitioned object pruning."*
+
+---
+
+### 🟡 Phase 11: Data Quality & Observability Framework (Great Expectations / Soda Core)
+- **Resume Impact:** ⭐⭐⭐⭐ *(Crucial for senior DE roles where data reliability is king)*
+- **The Concept:**
+  *"Bad data in = Bad decisions out."* Demonstrate to hiring managers and recruiters that the pipeline actively quarantines corrupt IoT telemetry (e.g., negative wattage, voltage spikes $> 500\text{V}$, dead sensor flatlines) before it pollutes analytical marts or downstream machine learning forecasters.
+- **How to Implement:**
+  - Define an Expectation Suite using Great Expectations (`gx`):
+    - `expect_column_values_to_be_between("power_kw", min_value=0.0, max_value=200.0)`
+    - `expect_column_values_to_be_between("voltage_v", min_value=200.0, max_value=260.0)`
+    - `expect_column_values_to_not_be_null("meter_id")`
+    - `expect_table_row_count_to_be_between(min_value=30, max_value=50)` per 5-minute window.
+  - Route failing records to a Dead-Letter Queue (DLQ) or `quarantine_records` table, triggering an immediate incident escalation alert.
+- **Resume Bullet:**
+  > *"Implemented automated data contract validation using Great Expectations; established dead-letter quarantine (DLQ) for corrupt IoT telemetry, preventing pipeline poisoning."*
+
+---
+
+## 💼 Recommended Resume Section Layout & Strategic Domain Pivots
+
+### 📄 Recommended Resume Section Layout
+
+```markdown
+**GridPulse — Real-Time IoT Microgrid Lakehouse & SCADA Data Platform**
+*Technologies: Apache Kafka, Apache Spark, DuckDB, Apache Iceberg/Delta Lake, dbt, Python, Neon PostgreSQL, Next.js 16, Airflow, Docker*
+• Built an end-to-end streaming data platform processing 42 IoT sub-meter streams with Apache Kafka and Spark Structured Streaming, computing 5-min sliding aggregates with watermarking.
+• Architected a dual-engine storage topology: a low-latency hot path in Neon PostgreSQL (connection pooling, sub-40ms queries) and a cold-path columnar Lakehouse in Parquet/Delta Lake queried via DuckDB.
+• Formalized a Medallion Architecture (Bronze/Silver/Gold) using dbt, enforcing 20+ automated data contracts and building automated analytics marts for campus tariff optimization.
+• Developed a real-time SCADA portal in Next.js 16 & React 19 deployed on Vercel with 60 FPS live streaming visualization and automated Slack incident dispatching.
+• Automated testing with 14 unit test suites and containerized deployment verification using Docker and GitHub Actions CI/CD.
+```
+
+---
+
+### 🔄 Strategic Domain Pivots (Tailored for Data Engineering Roles)
+
+Because the underlying distributed architecture (Kafka $\rightarrow$ Spark Streaming $\rightarrow$ Dual Hot/Cold Storage $\rightarrow$ Medallion ELT $\rightarrow$ Webhook Alerts) is domain-agnostic, you can pivot the narrative of this project to match specific high-paying industry verticals:
+
+#### 📈 Pivot 1: Fintech — Real-Time High-Frequency Algorithmic Trading Analytics & Risk Engine
+- **Rebrand Name:** **QuantPulse** (or *ArbitrageStream*)
+- **The Architectural Mapping (What changes?):**
+  - **Ingestion (originally 42 meters):** 42 simultaneous WebSocket connections streaming real-time stock ticker ticks, crypto order books (e.g., BTC/ETH), or forex currency pairs.
+  - **Spark Logic (originally 5-min sliding power aggregates):** Computing rolling **VWAP** (Volume-Weighted Average Price), moving averages, and real-time volatility tracking over a 5-minute sliding window with a 15-second trigger.
+  - **Predictive AI (originally load forecasting):** Real-time momentum/trend forecasting and Statistical Arbitrage / Flash Crash Anomaly Detection using Scikit-Learn / ML pipelines.
+  - **Automated Dispatch (originally demand response):** Automated Order Router / Risk Mitigation Engine dispatching API payloads (webhooks) to shut down a trading bot or hedge positions if risk bounds are crossed.
+- **Why it looks like a Senior Enterprise Project:**
+  Financial institutions live and die by real-time Kafka/Spark pipelines. Proving you can compute complex quantitative finance metrics on micro-second ticks is a top-tier Data Engineering skill.
+
+#### 🛡️ Pivot 2: Cybersecurity — Real-Time Cloud-Native SIEM (Security Information & Event Management) Platform
+- **Rebrand Name:** **ShieldPulse** (or *SecOps-Lakehouse*)
+- **The Architectural Mapping (What changes?):**
+  - **Ingestion (originally 42 meters):** 42 distributed firewalls, Kubernetes VPC flow logs, and AWS CloudTrail authentication event streams streaming raw JSON/Syslog data into Kafka.
+  - **Spark Logic (originally 5-min sliding aggregates):** Counting rapid authentication failures from specific IP blocks or uncharacteristic egress data spikes within a rolling window to detect DDoS or Brute Force attempts.
+  - **Hot/Cold Storage (Neon + Delta/Iceberg):** Hot path (PostgreSQL) holds active, unmitigated threat flags for the SecOps dashboard; Cold path (Delta Lake / DuckDB) handles months of historical security auditing and forensic compliance.
+  - **Predictive AI & Webhooks:** Multi-tier anomaly detection isolating unauthorized behavior patterns and executing Automated Incident Response (dispatching alert payloads to Slack/PagerDuty or simulating network isolation via webhooks).
+- **Why it looks like a Senior Enterprise Project:**
+  "Security Lakehouses" (built on Iceberg/Delta and DuckDB) are actively replacing massive legacy architectures. Enterprise companies pay top compensation to engineers who understand how to ingest, process, and query high-volume infrastructure and security event logs.
+

@@ -24,6 +24,7 @@ The platform evolves through **6 architectural phases**, transitioning from synt
 | **Phase 6** | **Predictive AI & Automated Dispatch** | ✅ Complete | Scikit-Learn, Random Forest, Webhooks | 24h recursive load forecasting, 3-tier peak-shaving dispatch, automated incident webhooks |
 | **Phase 7** | **Enterprise Medallion Lakehouse & dbt** | ✅ Complete | dbt-duckdb, DuckDB, Jinja, Data Contracts | Bronze/Silver/Gold ELT models, 34 data contract assertions, dimensional enrichment, curated analytical marts |
 | **Phase 8** | **ACID Lakehouse Table Format & Time-Travel** | ✅ Complete | Delta Lake (`deltalake`), DuckDB, PyArrow | Atomic commits (`_delta_log`), time-travel snapshots, dynamic schema evolution (`ambient_temp_c`), native OPTIMIZE compaction |
+| **Phase 9** | **Workflow Orchestration & Pipeline Automation** | ✅ Complete | Apache Airflow 2.x, Python, Docker, Slack Webhooks | 5-stage production DAG, telemetry freshness checks, Delta OPTIMIZE compaction, dbt tests, automated AI retraining, SLA observability |
 
 ---
 
@@ -106,14 +107,22 @@ Trigger automated Bronze ➔ Silver ➔ Gold transformations with 34 automated c
 python scripts/run_dbt.py --all
 ```
 
+### 6. Execute Workflow Orchestration DAG Pipeline
+Run the 5-stage automated orchestration pipeline locally or deploy via Docker Airflow:
+```powershell
+python orchestration/pipeline_runner.py --run-all
+```
+*Orchestrates telemetry freshness checks, Delta Lake OPTIMIZE compaction, dbt transformations & 34 contract tests, 24h AI demand forecaster retraining, and SLA observability alerting.*
+
 ---
 
 ## 🧪 Automated Testing
 
-Run the automated test suite covering all 8 architectural phases:
+Run the automated test suite covering all 9 architectural phases (34 tests + 34 dbt contract assertions = 68 validation gates):
 ```powershell
 python -m unittest discover -s tests -v
 ```
+- ✅ `test_orchestration.py`: Apache Airflow DAG topology, task isolation, latency SLA budgets, and run persistence.
 - ✅ `test_delta_lakehouse.py`: Delta Lake ACID commits, `_delta_log` audit integrity, schema evolution (`ambient_temp_c`), time-travel queries, and native `OPTIMIZE` in-place compaction.
 - ✅ `test_dbt.py`: Medallion layers compilation, 34 schema contract tests, DuckDB objects verification, and Gold mart KPIs sanity.
 - ✅ `test_simulator.py`: Physics calculations, electrical conversions, campus topology.
@@ -124,6 +133,7 @@ python -m unittest discover -s tests -v
 ---
 
 ## 🛠️ Optimization & Engineering Highlights
+- **Workflow Orchestration & SLA Alerting:** Orchestrated end-to-end ELT pipelines in Apache Airflow managing telemetry freshness validation, 6-hour lakehouse compaction, and automated ML model retraining with zero downtime and real-time Slack alerting.
 - **ACID Lakehouse Table Format:** Engineered an ACID Data Lakehouse using Delta Lake over partitioned Parquet; implemented time-travel snapshot auditing and schema evolution (`ambient_temp_c`), reducing cold-path scan latencies by 70% with DuckDB vectorization.
 - **Columnar Speedup:** DuckDB scanned 18,522 records directly over Parquet partitions in **5.33 ms** compared to **2,389 ms** in PostgreSQL — a **448.2x speedup** for historical analytics.
 - **Small-File Compaction:** [`scripts/compact_lake.py`](scripts/compact_lake.py) and native Delta `OPTIMIZE` coalesce high-frequency streaming micro-batch files into unified daily Parquet blocks, eliminating file system I/O bottlenecks.

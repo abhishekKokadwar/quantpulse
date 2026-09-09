@@ -22,5 +22,6 @@ dbt_lakehouse/dbt_packages/
 dbt_lakehouse/logs/
 dbt_lakehouse/.user.yml
 tmp/
+data/orchestration/
 
 
