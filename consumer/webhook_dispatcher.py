@@ -213,6 +213,96 @@ def dispatch_scada_fault_alert(
     return record
 
 
+# In-memory cooldown cache mapping wing_id -> last_dispatched_unix_timestamp
+LAST_GHOST_ALERT_DISPATCH: Dict[str, float] = {}
+
+
+def dispatch_ghost_load_alert(
+    wing_id: str,
+    current_kw: float,
+    baseline_med_kw: float,
+    excess_kw: float,
+    duration_minutes: float,
+    cause: str,
+    estimated_units: int,
+    wasted_kwh: float,
+    cost_inr: float,
+    co2_kg: float,
+    meter_id: Optional[str] = None,
+    webhook_url: Optional[str] = None,
+    cooldown_minutes: float = 60.0,
+) -> Dict[str, Any]:
+    """
+    Dispatches a structured incident card for an unoccupied hostel room ghost-load anomaly.
+    Enforces a strict per-wing cooldown (default 60 minutes) to prevent notification fatigue.
+    """
+    now_ts = time.time()
+    last_sent = LAST_GHOST_ALERT_DISPATCH.get(wing_id, 0.0)
+    cooldown_seconds = cooldown_minutes * 60.0
+
+    if (now_ts - last_sent) < cooldown_seconds:
+        remaining_m = round((cooldown_seconds - (now_ts - last_sent)) / 60.0, 1)
+        return {
+            "status": "SUPPRESSED_COOLDOWN",
+            "message": f"Alert for {wing_id} suppressed by cooldown policy ({remaining_m}m remaining).",
+            "wing_id": wing_id,
+            "timestamp": datetime.now().isoformat(),
+        }
+
+    url = webhook_url or get_default_webhook_url()
+    color = "#f97316" if "AC" in cause else "#eab308"
+
+    fields = [
+        {"name": "Hostel Facility", "value": f"*{wing_id}* ({meter_id or 'Main Meter'})", "short": True},
+        {"name": "Appliance Diagnosis", "value": f"*{cause}* (~{estimated_units} units)", "short": True},
+        {"name": "Current Demand", "value": f"{current_kw:.1f} kW", "short": True},
+        {"name": "Normal Baseline", "value": f"{baseline_med_kw:.1f} kW", "short": True},
+        {"name": "Excess Phantom Load", "value": f"*+{excess_kw:.1f} kW*", "short": True},
+        {"name": "Unoccupied Duration", "value": f"{duration_minutes:.0f} mins", "short": True},
+        {"name": "Accumulated Waste", "value": f"{wasted_kwh:.1f} kWh", "short": True},
+        {"name": "Financial / Carbon Impact", "value": f"₹{cost_inr:,.0f} | {co2_kg:.1f} kg CO₂", "short": True},
+    ]
+
+    payload = format_slack_card(
+        title=f"Unoccupied Hostel Ghost Load: {wing_id}",
+        color=color,
+        fields=fields,
+        summary=(
+            f"⚠️ *Unattended Energy Waste Alert*: {wing_id} is exhibiting +{excess_kw:.1f} kW above expected "
+            f"academic baseline for {duration_minutes:.0f} continuous minutes during scheduled lecture hours. "
+            f"Probable cause: *{cause}*."
+        ),
+        username="GridPulse Hostel Watchdog",
+        icon_emoji=":bed:",
+    )
+
+    result_status = "SIMULATED_SUCCESS"
+    status_code = 200
+
+    if url and url.startswith("http"):
+        try:
+            resp = requests.post(url, json=payload, timeout=5)
+            result_status = "SENT"
+            status_code = resp.status_code
+        except Exception as e:
+            result_status = f"FAILED: {e}"
+            status_code = 500
+
+    LAST_GHOST_ALERT_DISPATCH[wing_id] = now_ts
+
+    record = {
+        "timestamp": datetime.now().isoformat(),
+        "event_type": "GHOST_LOAD_ALERT",
+        "title": f"Ghost Load at {wing_id} ({cause})",
+        "target_url": url if url else "MOCK_CONSOLE",
+        "status": result_status,
+        "status_code": status_code,
+        "payload": payload,
+    }
+    _record_dispatch_history(record)
+    return record
+
+
 if __name__ == "__main__":
     print("[WEBHOOK DISPATCHER TEST]")
     test_plan = {

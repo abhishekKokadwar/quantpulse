@@ -9,8 +9,14 @@ import os
 import sys
 import time
 from typing import Dict, Any, List
-import pyarrow as pa
-import pyarrow.parquet as pq
+
+try:
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    HAS_PYARROW = True
+except Exception:
+    HAS_PYARROW = False
+    import duckdb
 
 # Add project root to sys.path
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -47,20 +53,24 @@ def compact_partition_dir(partition_dir: str) -> Dict[str, Any]:
     bytes_before = sum(os.path.getsize(f) for f in parquet_files)
     files_before = len(parquet_files)
 
-    # Read all files in partition
-    tables = [pq.read_table(f) for f in parquet_files]
-    combined_table = pa.concat_tables(tables)
-
     temp_compacted_path = os.path.join(partition_dir, "temp_compacted.parquet")
     final_compacted_path = os.path.join(partition_dir, f"compacted_part_{int(time.time())}.snappy.parquet")
 
-    # Write combined table
-    pq.write_table(
-        combined_table,
-        temp_compacted_path,
-        compression="snappy",
-        use_dictionary=True,
-    )
+    if HAS_PYARROW:
+        # Read all files in partition via PyArrow
+        tables = [pq.read_table(f) for f in parquet_files]
+        combined_table = pa.concat_tables(tables)
+        pq.write_table(
+            combined_table,
+            temp_compacted_path,
+            compression="snappy",
+            use_dictionary=True,
+        )
+    else:
+        # Vectorized DuckDB Parquet compaction (zero-pyarrow fallback)
+        escaped_files = [f.replace("\\", "/") for f in parquet_files]
+        temp_target = temp_compacted_path.replace("\\", "/")
+        duckdb.execute(f"COPY (SELECT * FROM read_parquet({escaped_files})) TO '{temp_target}' (FORMAT PARQUET, CODEC 'SNAPPY')")
 
     # Safe removal of fragmented part files
     for old_file in parquet_files:

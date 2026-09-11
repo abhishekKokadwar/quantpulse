@@ -2,7 +2,7 @@
 
 GridPulse is an enterprise-grade, end-to-end IoT data engineering pipeline and real-time analytical platform built for monitoring, analyzing, forecasting, and mitigating power grid telemetry across a university campus.
 
-The platform evolves through **10 architectural phases**, transitioning from synthetic batch telemetry to a distributed streaming Lambda/Kappa architecture, cold-path Parquet Data Lakehouse, predictive AI automation, ACID Delta table formats, workflow orchestration, and cloud object storage emulation.
+The platform evolves through **11 architectural phases**, transitioning from synthetic batch telemetry to a distributed streaming Lambda/Kappa architecture, cold-path Parquet Data Lakehouse, predictive AI automation, ACID Delta table formats, workflow orchestration, cloud object storage emulation, and non-intrusive hostel ghost-load intelligence.
 
 ---
 
@@ -26,6 +26,7 @@ The platform evolves through **10 architectural phases**, transitioning from syn
 | **Phase 8** | **ACID Lakehouse Table Format & Time-Travel** | ✅ Complete | Delta Lake (`deltalake`), DuckDB, PyArrow | Atomic commits (`_delta_log`), time-travel snapshots, dynamic schema evolution (`ambient_temp_c`), native OPTIMIZE compaction |
 | **Phase 9** | **Workflow Orchestration & Pipeline Automation** | ✅ Complete | Apache Airflow 2.x, Python, Docker, Slack Webhooks | 5-stage production DAG, telemetry freshness checks, Delta OPTIMIZE compaction, dbt tests, automated AI retraining, SLA observability |
 | **Phase 10** | **Cloud Object Storage Emulation (MinIO S3)** | ✅ Complete | MinIO, AWS S3 API, Boto3, DuckDB S3 | Cloud S3 lakehouse endpoint (`s3://gridpulse-lakehouse`), multi-part streaming commits, date-partitioned S3 sync, lifecycle storage tiering (`STANDARD` ➔ `GLACIER`), resilient local-fallback execution |
+| **Phase 11** | **Hostel Dorm Ghost Load & Waste Intelligence** | ✅ Complete | Robust Stats (Median/MAD), NILM, Webhooks | Non-intrusive empty-room AC & lighting waste detection during academic hours (09:00 - 17:00), thermodynamic duty-cycle disaggregation, hysteresis state machine, 100% precision & recall against ground truth |
 
 ---
 
@@ -129,14 +130,22 @@ python scripts/sync_to_s3.py --query-s3
 ```
 *MinIO Web Console is available at `http://localhost:9001` (Credentials: `minioadmin` / `minioadmin`).*
 
+### 8. Hostel Dorm Ghost Load & Unoccupied Waste Benchmark
+Evaluate precision, recall, and detection latency against synthetic ground-truth waste episodes:
+```powershell
+python scripts/evaluate_ghost_load.py
+```
+*Open the interactive Operations Portal (`streamlit run dashboard/app.py`) to access the dedicated **"🛏️ Hostel Ghost Load & Waste Monitor"** console with live KPIs, shaded baseline envelopes, simulated Wi-Fi divergence, and smart breaker soft-trip controls.*
+
 ---
 
 ## 🧪 Automated Testing
 
-Run the automated test suite covering all 10 architectural phases (41 tests + 34 dbt contract assertions = 75 validation gates):
+Run the automated test suite covering all 11 architectural phases (48 tests + 34 dbt contract assertions = 82 validation gates):
 ```powershell
 python -m unittest discover -s tests -v
 ```
+- ✅ `test_ghost_load.py`: Academic hours filtering (09:00-17:00), robust Median/MAD baselines, hysteresis state transitions, NILM AC compressor disaggregation, resistive lighting classification, 60-minute webhook cooldown, and ground-truth precision/recall evaluation.
 - ✅ `test_s3_lakehouse.py`: MinIO S3 connectivity, bucket provisioning, multi-part streaming uploads, date-partitioned sync, DuckDB S3 querying with zero-downtime fallback, and storage tier lifecycle transitions.
 - ✅ `test_orchestration.py`: Apache Airflow DAG topology, task isolation, latency SLA budgets, and run persistence.
 - ✅ `test_delta_lakehouse.py`: Delta Lake ACID commits, `_delta_log` audit integrity, schema evolution (`ambient_temp_c`), time-travel queries, and native `OPTIMIZE` in-place compaction.
@@ -149,6 +158,7 @@ python -m unittest discover -s tests -v
 ---
 
 ## 🛠️ Optimization & Engineering Highlights
+- **Non-Intrusive Ghost Load Anomaly Detection:** Engineered a smart grid intelligence engine detecting unoccupied hostel AC and lighting energy waste during lecture hours without invasive room sensors; achieved 100% precision and 100% recall against injected ground truth using robust Median/MAD baselines and thermodynamic duty-cycle autocorrelation.
 - **Cloud Object Storage Emulation (S3 API):** Integrated high-performance S3 emulation with MinIO, enabling zero-cloud-cost enterprise testing of S3 multi-part commits, date-partitioned lakehouse sync, automated lifecycle tiering (hot STANDARD to cold GLACIER), and DuckDB vectorized SQL over `s3://` URIs with zero-downtime fallback.
 - **Workflow Orchestration & SLA Alerting:** Orchestrated end-to-end ELT pipelines in Apache Airflow managing telemetry freshness validation, 6-hour lakehouse compaction, and automated ML model retraining with zero downtime and real-time Slack alerting.
 - **ACID Lakehouse Table Format:** Engineered an ACID Data Lakehouse using Delta Lake over partitioned Parquet; implemented time-travel snapshot auditing and schema evolution (`ambient_temp_c`), reducing cold-path scan latencies by 70% with DuckDB vectorization.

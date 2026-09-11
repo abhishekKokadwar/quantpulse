@@ -15,8 +15,13 @@ from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Tuple
 import pandas as pd
 import duckdb
-import pyarrow as pa
-import pyarrow.dataset as ds
+try:
+    import pyarrow as pa
+    import pyarrow.dataset as ds
+    HAS_PYARROW = True
+except Exception:
+    HAS_PYARROW = False
+
 from deltalake import DeltaTable, write_deltalake
 
 # Add project root to sys.path
@@ -73,16 +78,26 @@ class DeltaLakehouseManager:
             partition_by = ["year", "month", "day"]
 
         t0 = time.time()
-        # Read partitioned dataset via PyArrow
-        dataset = ds.dataset(self.parquet_source, format="parquet", partitioning="hive")
-        table = dataset.to_table()
-        if max_records and len(table) > max_records:
-            table = table.slice(0, max_records)
+        if HAS_PYARROW:
+            # Read partitioned dataset via PyArrow
+            dataset = ds.dataset(self.parquet_source, format="parquet", partitioning="hive")
+            table = dataset.to_table()
+            if max_records and len(table) > max_records:
+                table = table.slice(0, max_records)
+            total_records = len(table)
+            data_to_write = table
+        else:
+            # Zero-PyArrow fallback using DuckDB
+            duck_df = duckdb.query(f"SELECT * FROM read_parquet('{self.parquet_source}/**/*.parquet', hive_partitioning=true)").to_df()
+            if max_records and len(duck_df) > max_records:
+                duck_df = duck_df.iloc[:max_records]
+            total_records = len(duck_df)
+            data_to_write = duck_df
 
         # Atomic write to Delta Lake
         write_deltalake(
             self.table_path,
-            table,
+            data_to_write,
             partition_by=partition_by,
             mode="overwrite",
         )
@@ -91,7 +106,7 @@ class DeltaLakehouseManager:
         dt = self.get_table()
         return {
             "status": "INITIALIZED",
-            "total_records": len(table),
+            "total_records": total_records,
             "version": dt.version(),
             "partitions": partition_by,
             "elapsed_sec": elapsed_sec,
@@ -227,18 +242,24 @@ class DeltaLakehouseManager:
         t0 = time.time()
         dt = self.get_table(version=version)
         curr_version = dt.version()
-        arrow_ds = dt.to_pyarrow_dataset()
 
         con = duckdb.connect()
         try:
-            total_rows = con.execute("SELECT COUNT(*) FROM arrow_ds").fetchone()[0]
+            if HAS_PYARROW:
+                arrow_ds = dt.to_pyarrow_dataset()
+                source_name = "arrow_ds"
+            else:
+                table_df = dt.to_pandas()
+                source_name = "table_df"
+
+            total_rows = con.execute(f"SELECT COUNT(*) FROM {source_name}").fetchone()[0]
             if sql is None:
                 if limit:
-                    query_str = f"SELECT * FROM arrow_ds LIMIT {limit}"
+                    query_str = f"SELECT * FROM {source_name} LIMIT {limit}"
                 else:
-                    query_str = "SELECT * FROM arrow_ds"
+                    query_str = f"SELECT * FROM {source_name}"
             else:
-                query_str = sql.replace("campus_telemetry", "arrow_ds")
+                query_str = sql.replace("campus_telemetry", source_name)
 
             df = con.execute(query_str).df()
             elapsed_ms = round((time.time() - t0) * 1000, 2)
@@ -271,10 +292,16 @@ class DeltaLakehouseManager:
 
         con = duckdb.connect()
         try:
-            ds_a = dt_a.to_pyarrow_dataset()
-            ds_b = dt_b.to_pyarrow_dataset()
-            count_a = con.execute("SELECT COUNT(*) FROM ds_a").fetchone()[0]
-            count_b = con.execute("SELECT COUNT(*) FROM ds_b").fetchone()[0]
+            if HAS_PYARROW:
+                ds_a = dt_a.to_pyarrow_dataset()
+                ds_b = dt_b.to_pyarrow_dataset()
+                count_a = con.execute("SELECT COUNT(*) FROM ds_a").fetchone()[0]
+                count_b = con.execute("SELECT COUNT(*) FROM ds_b").fetchone()[0]
+            else:
+                df_a = dt_a.to_pandas()
+                df_b = dt_b.to_pandas()
+                count_a = con.execute("SELECT COUNT(*) FROM df_a").fetchone()[0]
+                count_b = con.execute("SELECT COUNT(*) FROM df_b").fetchone()[0]
         finally:
             con.close()
 

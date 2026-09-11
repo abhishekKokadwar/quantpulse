@@ -1,4 +1,5 @@
 import csv
+import json
 import math
 import os
 import random
@@ -23,6 +24,40 @@ except Exception:
     DB_AVAILABLE = False
 
 # Structured categorization of campus infrastructure
+GROUND_TRUTH_PATH = os.path.join(PROJECT_ROOT, "data", "simulator", "ground_truth_waste_events.json")
+
+
+def get_ground_truth_events():
+    """Reads recorded ground-truth unoccupied waste events from JSON audit log."""
+    if os.path.exists(GROUND_TRUTH_PATH):
+        try:
+            with open(GROUND_TRUTH_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
+
+
+def save_ground_truth_event(event_dict):
+    """Appends a ground-truth waste event to the audit store."""
+    os.makedirs(os.path.dirname(GROUND_TRUTH_PATH), exist_ok=True)
+    events = get_ground_truth_events()
+    # Avoid duplicate event_id
+    if not any(e.get("event_id") == event_dict.get("event_id") for e in events):
+        events.append(event_dict)
+        with open(GROUND_TRUTH_PATH, "w", encoding="utf-8") as f:
+            json.dump(events, f, indent=2, default=str)
+
+
+def clear_ground_truth_events():
+    """Clears the ground-truth waste events audit file."""
+    if os.path.exists(GROUND_TRUTH_PATH):
+        try:
+            os.remove(GROUND_TRUTH_PATH)
+        except Exception:
+            pass
+
+
 CAMPUS_INFRASTRUCTURE = {
     "Hostels": {
         "BH1": 3,
@@ -192,8 +227,12 @@ def calculate_building_power(building, category, dt):
     return max(1.0, base_power)
 
 
-def generate_reading(meter, event_id, dt=None):
-    """Generates a single simulated meter reading."""
+def generate_reading(meter, event_id, dt=None, inject_waste=False, waste_config=None):
+    """
+    Generates a single simulated meter reading.
+    Supports unoccupied hostel waste injection (AC compressor or resistive lighting)
+    during weekday lecture hours (10:00 to 16:00).
+    """
     if dt is None:
         dt = datetime.now()
 
@@ -201,6 +240,9 @@ def generate_reading(meter, event_id, dt=None):
     category = meter["building_type"]
 
     power_kw = calculate_building_power(building, category, dt)
+    hour_float = dt.hour + dt.minute / 60.0
+    day_of_week = dt.weekday()
+    is_weekday_academic = (day_of_week < 5) and (10.0 <= hour_float <= 16.0)
 
     # Voltage simulation: nominal 230V
     base_voltage = 233.0 - (power_kw / 50.0) * 4.0
@@ -213,7 +255,7 @@ def generate_reading(meter, event_id, dt=None):
     elif rand_anom < 0.02:
         voltage_v = random.uniform(242.0, 249.0)
 
-    # Power Factor
+    # Power Factor calculation
     if category in ["Facilities", "Departments"]:
         base_pf = random.uniform(0.86, 0.95)
     else:
@@ -222,9 +264,62 @@ def generate_reading(meter, event_id, dt=None):
     if random.random() < 0.01:
         base_pf = random.uniform(0.78, 0.84)
 
-    current_a = (power_kw * 1000.0) / voltage_v
+    # ---------------------------------------------------------
+    # Unoccupied Hostel Waste Injection Logic
+    # ---------------------------------------------------------
+    injected_meta = None
+    if inject_waste and category == "Hostels" and is_weekday_academic:
+        # Default waste config if not specified
+        if waste_config is None:
+            waste_config = {
+                "BH1": {"type": "AC_COMPRESSOR", "excess_kw": 14.0, "target_pf": 0.78, "on_mins": 18, "off_mins": 10},
+                "BH3": {"type": "AC_COMPRESSOR", "excess_kw": 16.5, "target_pf": 0.77, "on_mins": 18, "off_mins": 10},
+                "BH2": {"type": "RESISTIVE_LIGHTING", "excess_kw": 9.0, "target_pf": 0.99},
+            }
 
-    return {
+        cfg = waste_config.get(building)
+        if cfg:
+            w_type = cfg.get("type", "AC_COMPRESSOR")
+            excess_kw = cfg.get("excess_kw", 14.0)
+            target_pf = cfg.get("target_pf", 0.78)
+
+            if w_type == "AC_COMPRESSOR":
+                on_m = cfg.get("on_mins", 18)
+                off_m = cfg.get("off_mins", 10)
+                period = max(1, on_m + off_m)
+                cycle_minute = int((dt.hour * 60 + dt.minute) % period)
+                if cycle_minute < on_m:
+                    # Compressor ON: heavy inductive load with low power factor
+                    power_kw += excess_kw + random.uniform(-0.4, 0.4)
+                    base_pf = random.uniform(target_pf - 0.02, target_pf + 0.02)
+                    injected_meta = {
+                        "waste_type": "AC_COMPRESSOR",
+                        "duty_state": "ON",
+                        "excess_kw": excess_kw,
+                        "pf": base_pf,
+                    }
+                else:
+                    # Compressor OFF (resting between cycles)
+                    injected_meta = {
+                        "waste_type": "AC_COMPRESSOR",
+                        "duty_state": "OFF",
+                        "excess_kw": 0.0,
+                        "pf": base_pf,
+                    }
+            elif w_type == "RESISTIVE_LIGHTING":
+                # Flat resistive load: steady high PF
+                power_kw += excess_kw + random.uniform(-0.3, 0.3)
+                base_pf = min(1.0, random.uniform(target_pf - 0.01, 1.0))
+                injected_meta = {
+                    "waste_type": "RESISTIVE_LIGHTING",
+                    "duty_state": "ON",
+                    "excess_kw": excess_kw,
+                    "pf": base_pf,
+                }
+
+    current_a = (power_kw * 1000.0) / max(voltage_v, 1.0)
+
+    reading = {
         "event_id": f"E{event_id:06d}",
         "timestamp": dt.isoformat(timespec="seconds"),
         "meter_id": meter["meter_id"],
@@ -235,6 +330,10 @@ def generate_reading(meter, event_id, dt=None):
         "current_a": round(current_a, 2),
         "power_factor": round(base_pf, 3),
     }
+    if injected_meta:
+        reading["waste_injection"] = injected_meta
+
+    return reading
 
 
 def save_readings_to_csv(readings, filepath="data/raw/energy_data.csv", overwrite=False):
@@ -342,6 +441,148 @@ def run_live_simulation(interval_sec=3, save_to_db=True, output_path="data/raw/e
             time.sleep(interval_sec)
     except KeyboardInterrupt:
         print("\n[STOP] Simulation stopped by user.")
+
+
+def generate_hostel_waste_scenario(
+    days=5,
+    interval_minutes=15,
+    output_path=None,
+    record_ground_truth=True,
+    clear_existing_ground_truth=True,
+):
+    """
+    Generates a multi-day time-series with synthetic ground-truth injected
+    unoccupied hostel waste events (AC compressor cycling and resistive lighting)
+    during academic hours (10:00 to 16:00).
+    Logs ground-truth episodes to data/simulator/ground_truth_waste_events.json.
+    """
+    if clear_existing_ground_truth:
+        clear_ground_truth_events()
+
+    meters = create_meters()
+    readings = []
+    event_id = 1
+
+    # Start on a Monday 00:00 to ensure clear weekday/weekend cycles
+    now = datetime.now()
+    days_since_monday = now.weekday()
+    monday_start = (now - timedelta(days=days_since_monday + 7)).replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    total_intervals = int((days * 24 * 60) / interval_minutes)
+
+    # Pre-defined ground truth waste injection schedule
+    # Format: day_offset (0=Mon, 1=Tue...), start_hour, end_hour, building, meter_id, type, excess_kw, target_pf, expected_trigger
+    gt_schedule = [
+        # Episode 1: BH1 Wing A (M001) - AC Compressor waste on Monday 10:30 - 15:30 (5 hours, >=45m -> True Positive)
+        {
+            "event_id": "GT_BH1_MON_AC",
+            "day_offset": 0,
+            "start_time": (monday_start + timedelta(days=0, hours=10, minutes=30)),
+            "end_time": (monday_start + timedelta(days=0, hours=15, minutes=30)),
+            "building_id": "BH1",
+            "meter_id": "M001",
+            "waste_type": "AC_COMPRESSOR",
+            "excess_kw": 14.5,
+            "target_pf": 0.78,
+            "on_mins": 18,
+            "off_mins": 10,
+            "expected_trigger": True,
+        },
+        # Episode 2: BH2 Wing A (M004) - Resistive Lighting waste on Tuesday 11:00 - 14:30 (3.5 hours, >=45m -> True Positive)
+        {
+            "event_id": "GT_BH2_TUE_LIGHTS",
+            "day_offset": 1,
+            "start_time": (monday_start + timedelta(days=1, hours=11, minutes=0)),
+            "end_time": (monday_start + timedelta(days=1, hours=14, minutes=30)),
+            "building_id": "BH2",
+            "meter_id": "M004",
+            "waste_type": "RESISTIVE_LIGHTING",
+            "excess_kw": 9.5,
+            "target_pf": 0.99,
+            "expected_trigger": True,
+        },
+        # Episode 3: BH3 Wing A (M007) - AC Compressor waste on Thursday 10:15 - 15:45 (5.5 hours, >=45m -> True Positive)
+        {
+            "event_id": "GT_BH3_THU_AC",
+            "day_offset": 3,
+            "start_time": (monday_start + timedelta(days=3, hours=10, minutes=15)),
+            "end_time": (monday_start + timedelta(days=3, hours=15, minutes=45)),
+            "building_id": "BH3",
+            "meter_id": "M007",
+            "waste_type": "AC_COMPRESSOR",
+            "excess_kw": 15.5,
+            "target_pf": 0.77,
+            "on_mins": 18,
+            "off_mins": 10,
+            "expected_trigger": True,
+        },
+        # Episode 4: BH4 Wing A (M010) - Short transient spike on Wednesday 12:00 - 12:20 (20 minutes, <45m -> Must NOT trigger!)
+        {
+            "event_id": "GT_BH4_WED_TRANSIENT",
+            "day_offset": 2,
+            "start_time": (monday_start + timedelta(days=2, hours=12, minutes=0)),
+            "end_time": (monday_start + timedelta(days=2, hours=12, minutes=20)),
+            "building_id": "BH4",
+            "meter_id": "M010",
+            "waste_type": "RESISTIVE_LIGHTING",
+            "excess_kw": 11.0,
+            "target_pf": 0.96,
+            "expected_trigger": False,
+        },
+    ]
+
+    # Save ground truth audit records
+    if record_ground_truth:
+        for ep in gt_schedule:
+            save_ground_truth_event({
+                "event_id": ep["event_id"],
+                "building_id": ep["building_id"],
+                "meter_id": ep["meter_id"],
+                "waste_type": ep["waste_type"],
+                "start_time": ep["start_time"].isoformat(),
+                "end_time": ep["end_time"].isoformat(),
+                "duration_minutes": int((ep["end_time"] - ep["start_time"]).total_seconds() / 60),
+                "excess_kw": ep["excess_kw"],
+                "target_pf": ep["target_pf"],
+                "expected_trigger": ep["expected_trigger"],
+            })
+
+    # Generate readings
+    for i in range(total_intervals):
+        dt = monday_start + timedelta(minutes=i * interval_minutes)
+
+        # Check if any ground truth event is active at this instant for a specific meter
+        active_meter_wastes = {}
+        for ep in gt_schedule:
+            if ep["start_time"] <= dt <= ep["end_time"]:
+                active_meter_wastes[ep["meter_id"]] = {
+                    "type": ep["waste_type"],
+                    "excess_kw": ep["excess_kw"],
+                    "target_pf": ep["target_pf"],
+                    "on_mins": ep.get("on_mins", 18),
+                    "off_mins": ep.get("off_mins", 10),
+                }
+
+        for meter in meters:
+            m_id = meter["meter_id"]
+            b_id = meter["building_id"]
+            if m_id in active_meter_wastes:
+                reading = generate_reading(
+                    meter,
+                    event_id=event_id,
+                    dt=dt,
+                    inject_waste=True,
+                    waste_config={b_id: active_meter_wastes[m_id]},
+                )
+            else:
+                reading = generate_reading(meter, event_id=event_id, dt=dt, inject_waste=False)
+            readings.append(reading)
+            event_id += 1
+
+    if output_path:
+        save_readings_to_csv(readings, output_path, overwrite=True)
+
+    return readings
 
 
 if __name__ == "__main__":
