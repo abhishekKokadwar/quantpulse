@@ -237,30 +237,30 @@ export default function HowItWorksPage() {
   const selectedNode = architectureNodes.find(n => n.id === selectedNodeId) || architectureNodes[9];
 
   return (
-    <div className="min-h-screen bg-[#090D16] text-slate-100 flex flex-col font-sans selection:bg-amber-400/30 selection:text-amber-200">
+    <div className="min-h-screen bg-black text-white flex flex-col font-sans selection:bg-white selection:text-black">
       {/* TOP HEADER */}
-      <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800 px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+      <header className="sticky top-0 z-40 bg-black/90 backdrop-blur-xl border-b border-[#1A1A1A] px-6 py-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <Link
             href="/"
-            className="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-amber-300 transition"
+            className="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-xl bg-[#111111] border border-[#222222] hover:border-[#333333] text-[#A3A3A3] hover:text-white transition"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Back to Live SCADA Operations</span>
           </Link>
-          <div className="h-4 w-px bg-slate-800 hidden sm:block" />
+          <div className="h-4 w-px bg-[#1A1A1A] hidden sm:block" />
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            <div className="w-8 h-8 rounded-xl bg-[#141414] border border-[#262626] flex items-center justify-center text-white">
               <Workflow className="w-4 h-4" />
             </div>
             <div>
               <h1 className="text-sm font-extrabold text-white tracking-tight flex items-center gap-2">
                 <span>GridPulse Architectural Blueprint &amp; Pipeline Engine</span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40">
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/10 text-white border border-white/20">
                   Phases 1–11
                 </span>
               </h1>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-[#A3A3A3]">
                 End-to-end data pipeline, statistical formulations, and engineering defense guide.
               </p>
             </div>
@@ -270,17 +270,17 @@ export default function HowItWorksPage() {
         <div className="flex items-center gap-2.5">
           <button
             onClick={() => setIsExplainerOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-xs font-semibold text-amber-300 transition"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white hover:bg-neutral-200 text-black text-xs font-semibold transition shadow-sm"
           >
-            <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+            <BookOpen className="w-3.5 h-3.5" />
             <span>💡 Feature Guide / Explainer</span>
           </button>
           <button
             onClick={() => window.print()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-300 transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#111111] hover:bg-[#1A1A1A] border border-[#222222] text-xs font-semibold text-white transition"
             title="Print or Save as PDF"
           >
-            <FileText className="w-3.5 h-3.5 text-slate-400" />
+            <FileText className="w-3.5 h-3.5 text-[#A3A3A3]" />
             <span>Print Blueprint</span>
           </button>
         </div>

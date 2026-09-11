@@ -11,9 +11,7 @@ import {
   Database,
   Radio,
   ExternalLink,
-  ShieldCheck,
   CheckCircle2,
-  AlertTriangle,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -99,41 +97,41 @@ export function FeatureExplainerModal({ isOpen, onClose }: FeatureExplainerModal
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="bg-[#0A0A0A] border border-[#222222] rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-white">
         {/* Modal Header */}
-        <div className="px-6 py-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+        <div className="px-6 py-5 border-b border-[#1A1A1A] flex items-center justify-between bg-black/50">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            <div className="w-9 h-9 rounded-xl bg-[#141414] border border-[#262626] flex items-center justify-center text-white">
               <BookOpen className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                GridPulse Feature & Operational Explainer Guide
+                GridPulse Feature &amp; Operational Explainer Guide
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-[#A3A3A3]">
                 Detailed technical breakdown of every algorithm, ML detector, and engineering design choice.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-700 transition"
+            className="p-1.5 rounded-lg bg-[#141414] text-[#A3A3A3] hover:text-white hover:bg-[#1E1E1E] transition border border-[#222222]"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Search & Categories Bar */}
-        <div className="px-6 py-3 border-b border-slate-800/80 bg-slate-900/40 flex flex-wrap items-center justify-between gap-3">
+        <div className="px-6 py-3 border-b border-[#1A1A1A] bg-black/40 flex flex-wrap items-center justify-between gap-3">
           <div className="relative flex-1 min-w-[240px]">
-            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-[#666666] absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Search features, ML algorithms, statistics (e.g. MAD, Hysteresis, NILM)..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-950/60 border border-slate-800 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
+              className="w-full pl-9 pr-3 py-1.5 text-xs bg-[#111111] border border-[#222222] rounded-lg text-white placeholder-[#525252] focus:outline-none focus:border-white"
             />
           </div>
           <div className="flex items-center gap-1 text-xs">
@@ -147,10 +145,10 @@ export function FeatureExplainerModal({ isOpen, onClose }: FeatureExplainerModal
               <button
                 key={cat.id}
                 onClick={() => setActiveCategory(cat.id)}
-                className={`px-2.5 py-1 rounded-md transition font-medium ${
+                className={`px-2.5 py-1 rounded-md transition font-medium text-xs ${
                   activeCategory === cat.id
-                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-white text-black font-semibold'
+                    : 'text-[#A3A3A3] hover:text-white hover:bg-[#141414]'
                 }`}
               >
                 {cat.label}
@@ -160,9 +158,9 @@ export function FeatureExplainerModal({ isOpen, onClose }: FeatureExplainerModal
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 overflow-y-auto space-y-6 flex-1">
+        <div className="p-6 overflow-y-auto space-y-4 flex-1">
           {filtered.length === 0 ? (
-            <div className="text-center py-12 text-slate-400 text-xs">
+            <div className="text-center py-12 text-[#666666] text-xs">
               No matching features found for &quot;{searchTerm}&quot;.
             </div>
           ) : (
@@ -171,30 +169,30 @@ export function FeatureExplainerModal({ isOpen, onClose }: FeatureExplainerModal
               return (
                 <div
                   key={feature.id}
-                  className="glass-panel p-5 rounded-xl border border-slate-800 hover:border-slate-700 transition"
+                  className="p-5 rounded-xl bg-[#0E0E0E] border border-[#1E1E1E] hover:border-[#333333] transition"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-amber-400">
+                      <div className="w-8 h-8 rounded-lg bg-[#161616] border border-[#262626] flex items-center justify-center text-white">
                         <Icon className="w-4 h-4" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <h3 className="font-bold text-sm text-white">{feature.title}</h3>
-                          <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                          <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-white/10 text-white border border-white/20">
                             {feature.badge}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-300 mt-1">{feature.summary}</p>
+                        <p className="text-xs text-[#A3A3A3] mt-1">{feature.summary}</p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="mt-4 space-y-2 border-t border-slate-800/80 pt-3">
-                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                  <div className="mt-4 space-y-2 border-t border-[#1A1A1A] pt-3">
+                    <span className="text-[11px] font-semibold text-[#666666] uppercase tracking-wider">
                       Technical Mechanisms:
                     </span>
-                    <ul className="space-y-1.5 text-xs text-slate-300">
+                    <ul className="space-y-1.5 text-xs text-[#D4D4D4]">
                       {feature.bullets.map((b, idx) => (
                         <li key={idx} className="flex items-start gap-2">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
@@ -205,12 +203,12 @@ export function FeatureExplainerModal({ isOpen, onClose }: FeatureExplainerModal
                   </div>
 
                   {feature.talkingPoint && (
-                    <div className="mt-3.5 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 text-xs">
-                      <span className="font-semibold text-amber-300 flex items-center gap-1.5 mb-1">
-                        <Zap className="w-3.5 h-3.5 text-amber-400" />
+                    <div className="mt-3.5 p-3 rounded-lg bg-[#141414] border border-[#262626] text-xs">
+                      <span className="font-semibold text-white flex items-center gap-1.5 mb-1">
+                        <Zap className="w-3.5 h-3.5 text-white" />
                         Key Defense Talking Point for Evaluators:
                       </span>
-                      <p className="text-slate-300 leading-relaxed text-[11px]">{feature.talkingPoint}</p>
+                      <p className="text-[#A3A3A3] leading-relaxed text-[11px]">{feature.talkingPoint}</p>
                     </div>
                   )}
                 </div>
@@ -220,17 +218,17 @@ export function FeatureExplainerModal({ isOpen, onClose }: FeatureExplainerModal
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-4 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between">
+        <div className="px-6 py-4 border-t border-[#1A1A1A] bg-black/50 flex items-center justify-between">
           <Link
             href="/howItWorks"
-            className="flex items-center gap-1.5 text-xs font-semibold text-amber-400 hover:text-amber-300 transition"
+            className="flex items-center gap-1.5 text-xs font-semibold text-white hover:text-[#A3A3A3] transition"
           >
             <span>Open Complete Architectural Blueprint &amp; Flow Diagram (/howItWorks)</span>
             <ExternalLink className="w-3.5 h-3.5" />
           </Link>
           <button
             onClick={onClose}
-            className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 transition"
+            className="px-4 py-1.5 rounded-lg bg-white text-black hover:bg-neutral-200 text-xs font-semibold transition"
           >
             Close Guide
           </button>

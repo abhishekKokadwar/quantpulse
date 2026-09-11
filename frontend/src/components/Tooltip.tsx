@@ -61,16 +61,16 @@ export function Tooltip({
         <button
           type="button"
           aria-label="Info"
-          className="text-slate-400 hover:text-amber-400 p-0.5 rounded-full hover:bg-slate-800/80 transition-colors focus:outline-none focus:ring-1 focus:ring-amber-400"
+          className="text-[#666666] hover:text-white p-0.5 rounded-full hover:bg-[#1A1A1A] transition-colors focus:outline-none"
         >
           <HelpCircle className="w-3.5 h-3.5" />
         </button>
       ) : variant === 'badge' ? (
         <button
           type="button"
-          className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800/80 hover:bg-amber-500/20 text-slate-400 hover:text-amber-300 border border-slate-700/60 transition-colors flex items-center gap-1"
+          className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#111111] hover:bg-[#1A1A1A] text-[#A3A3A3] hover:text-white border border-[#222222] transition-colors flex items-center gap-1"
         >
-          <Info className="w-2.5 h-2.5 text-amber-400" />
+          <Info className="w-2.5 h-2.5 text-white" />
           <span>Explain</span>
         </button>
       ) : (
@@ -82,14 +82,14 @@ export function Tooltip({
           role="tooltip"
           className={`absolute z-50 ${positionClasses[position]} ${maxWidth} pointer-events-none transition-all duration-200 animate-in fade-in zoom-in-95`}
         >
-          <div className="bg-slate-900/95 backdrop-blur-md border border-amber-500/30 text-slate-200 text-xs rounded-xl p-3 shadow-2xl shadow-black/80 font-sans leading-relaxed">
+          <div className="bg-[#0A0A0A] backdrop-blur-md border border-[#262626] text-white text-xs rounded-xl p-3 shadow-2xl shadow-black font-sans leading-relaxed">
             {title && (
-              <div className="font-semibold text-amber-300 flex items-center gap-1.5 pb-1.5 mb-1.5 border-b border-slate-800">
-                <Info className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <div className="font-semibold text-white flex items-center gap-1.5 pb-1.5 mb-1.5 border-b border-[#1A1A1A]">
+                <Info className="w-3.5 h-3.5 text-white shrink-0" />
                 <span>{title}</span>
               </div>
             )}
-            <div className="text-slate-300 text-[11px] font-normal leading-normal">{content}</div>
+            <div className="text-[#A3A3A3] text-[11px] font-normal leading-normal">{content}</div>
           </div>
         </div>
       )}

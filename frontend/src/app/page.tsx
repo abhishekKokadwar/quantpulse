@@ -471,67 +471,67 @@ export default function ScadaDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#090D16] text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-black text-white flex flex-col font-sans selection:bg-white selection:text-black">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 animate-bounce">
           <div
             className={`px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 border text-xs font-semibold backdrop-blur-xl ${
               toastMessage.type === 'success'
-                ? 'bg-emerald-950/90 text-emerald-200 border-emerald-500/50'
+                ? 'bg-[#0A0A0A] text-emerald-400 border-emerald-500/50'
                 : toastMessage.type === 'error'
-                ? 'bg-red-950/90 text-red-200 border-red-500/50'
-                : 'bg-amber-950/90 text-amber-200 border-amber-500/50'
+                ? 'bg-[#0A0A0A] text-rose-400 border-rose-500/50'
+                : 'bg-[#0A0A0A] text-white border-[#333333]'
             }`}
           >
             {toastMessage.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
-            {toastMessage.type === 'error' && <AlertTriangle className="w-4 h-4 text-red-400" />}
-            {toastMessage.type === 'info' && <Info className="w-4 h-4 text-amber-400" />}
+            {toastMessage.type === 'error' && <AlertTriangle className="w-4 h-4 text-rose-400" />}
+            {toastMessage.type === 'info' && <Info className="w-4 h-4 text-white" />}
             <span>{toastMessage.text}</span>
           </div>
         </div>
       )}
 
       {/* TOP SCADA CONTROL HEADER */}
-      <header className="border-b border-slate-800/80 bg-slate-950/70 backdrop-blur-xl sticky top-0 z-40 px-6 py-3 flex flex-wrap items-center justify-between gap-4">
+      <header className="border-b border-[#1A1A1A] bg-black/90 backdrop-blur-xl sticky top-0 z-40 px-6 py-3 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-400 flex items-center justify-center shadow-lg shadow-amber-500/20">
-            <Zap className="w-6 h-6 text-slate-950 fill-current" />
+          <div className="w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center shadow-md">
+            <Zap className="w-5 h-5 text-black fill-current" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
                 GridPulse Operations Portal
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-mono border border-emerald-500/30">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-mono border border-emerald-500/30">
                   SCADA LIVE
                 </span>
               </h1>
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-[#A3A3A3]">
               Smart Campus Microgrid Telemetry • 22 Buildings • 42 Sub-Meters • Neon Serverless Cloud
             </p>
           </div>
         </div>
 
         {/* Live Status Indicators */}
-        <div className="flex items-center gap-2.5 bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-800">
+        <div className="flex items-center gap-2.5 bg-[#0A0A0A] px-3 py-1.5 rounded-xl border border-[#1A1A1A]">
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
             <span className="text-xs font-mono font-bold text-emerald-400">NEON CLOUD</span>
           </div>
-          <div className="h-4 w-px bg-slate-800" />
-          <div className="text-xs text-slate-400 flex items-center gap-1.5 font-mono">
-            <Clock className="w-3.5 h-3.5 text-slate-500" />
+          <div className="h-4 w-px bg-[#1A1A1A]" />
+          <div className="text-xs text-[#A3A3A3] flex items-center gap-1.5 font-mono">
+            <Clock className="w-3.5 h-3.5 text-[#666666]" />
             <span>{currentTime || '00:00:00'}</span>
           </div>
-          <div className="h-4 w-px bg-slate-800" />
+          <div className="h-4 w-px bg-[#1A1A1A]" />
           <div className="text-xs font-mono text-cyan-400 flex items-center gap-1">
             <Radio className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
             <span>{liveFrequencyHz.toFixed(2)} Hz</span>
           </div>
-          <div className="h-4 w-px bg-slate-800" />
-          <div className="text-xs font-mono text-slate-400">
-            <span className="text-amber-400 font-semibold">{pingLatency}ms</span>
+          <div className="h-4 w-px bg-[#1A1A1A]" />
+          <div className="text-xs font-mono text-[#A3A3A3]">
+            <span className="text-white font-semibold">{pingLatency}ms</span>
           </div>
         </div>
 
@@ -542,12 +542,12 @@ export default function ScadaDashboard() {
             onClick={() => setIsLiveStream(!isLiveStream)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition border ${
               isLiveStream
-                ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
-                : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                ? 'bg-white text-black border-white'
+                : 'bg-[#111111] border-[#222222] text-[#A3A3A3] hover:text-white'
             }`}
             title="Toggle between 1-second live sliding stream and database batch snapshot"
           >
-            <span className={`w-2 h-2 rounded-full ${isLiveStream ? 'bg-emerald-400 animate-ping' : 'bg-slate-500'}`} />
+            <span className={`w-2 h-2 rounded-full ${isLiveStream ? 'bg-black animate-ping' : 'bg-[#666666]'}`} />
             <span>{isLiveStream ? '1s STREAM: ACTIVE' : 'STREAM: PAUSED'}</span>
           </button>
 
@@ -555,15 +555,15 @@ export default function ScadaDashboard() {
           <button
             onClick={handlePushLiveBatch}
             disabled={isSimulatingDb}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold font-mono transition disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#111111] hover:bg-[#1A1A1A] border border-[#222222] text-white text-xs font-bold font-mono transition disabled:opacity-50"
             title="Generate a real-time reading for all 42 meters and commit directly to Neon PostgreSQL"
           >
             <Zap className={`w-3.5 h-3.5 text-amber-400 ${isSimulatingDb ? 'animate-spin' : ''}`} />
             <span>{isSimulatingDb ? 'Ingesting...' : '⚡ Push to Neon'}</span>
           </button>
 
-          <div className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5 text-xs font-medium">
-            <span className="px-2 text-[11px] text-slate-500">Sync:</span>
+          <div className="flex items-center bg-[#111111] border border-[#1A1A1A] rounded-lg p-0.5 text-xs font-medium">
+            <span className="px-2 text-[11px] text-[#666666]">Sync:</span>
             {[
               { label: '1s', val: 1000 },
               { label: '3s', val: 3000 },
@@ -575,8 +575,8 @@ export default function ScadaDashboard() {
                 onClick={() => setRefreshInterval(item.val)}
                 className={`px-2 py-1 rounded-md transition-all ${
                   refreshInterval === item.val
-                    ? 'bg-amber-500 text-slate-950 font-bold shadow'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'bg-white text-black font-bold shadow'
+                    : 'text-[#A3A3A3] hover:text-white'
                 }`}
               >
                 {item.label}
@@ -587,27 +587,27 @@ export default function ScadaDashboard() {
           <button
             onClick={fetchData}
             disabled={isRefreshing}
-            className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 transition disabled:opacity-50"
+            className="p-2 rounded-lg bg-[#111111] border border-[#1A1A1A] text-[#A3A3A3] hover:text-white transition disabled:opacity-50"
             title="Manual sync with Neon PostgreSQL"
           >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-amber-400' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-white' : ''}`} />
           </button>
 
           <Link
             href="/howItWorks"
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:text-amber-200 transition"
+            className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-lg bg-white text-black hover:bg-neutral-200 transition shadow-sm"
             title="Open interactive pipeline flow diagram and complete 11-phase architecture blueprint"
           >
-            <Workflow className="w-3.5 h-3.5 text-amber-400" />
+            <Workflow className="w-3.5 h-3.5" />
             <span>🧭 Architecture &amp; Pipeline (/howItWorks)</span>
           </Link>
 
           <button
             onClick={() => setIsExplainerOpen(true)}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-amber-300 transition"
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#111111] border border-[#222222] hover:border-[#333333] text-[#A3A3A3] hover:text-white transition"
             title="Open searchable explainer guide for all dashboard features"
           >
-            <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+            <BookOpen className="w-3.5 h-3.5 text-white" />
             <span>💡 Feature Guide</span>
           </button>
 
@@ -615,7 +615,7 @@ export default function ScadaDashboard() {
             href="https://share.streamlit.io"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-amber-300 transition"
+            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-[#111111] border border-[#222222] text-[#A3A3A3] hover:text-white transition"
           >
             <span>Analytics Studio</span>
             <ExternalLink className="w-3.5 h-3.5" />
@@ -1267,18 +1267,18 @@ export default function ScadaDashboard() {
                     onClick={() => setAlertChannel('telegram')}
                     className={`px-3 py-1.5 rounded-lg transition font-bold ${
                       alertChannel === 'telegram'
-                        ? 'bg-sky-500/20 text-sky-300 border border-sky-500/50 shadow'
-                        : 'text-slate-400 hover:text-white'
+                        ? 'bg-white text-black font-semibold'
+                        : 'text-[#A3A3A3] hover:text-white'
                     }`}
                   >
                     ✈️ Telegram Bot (Preferred)
                   </button>
                   <button
                     onClick={() => setAlertChannel('slack')}
-                    className={`px-3 py-1.5 rounded-lg transition font-bold ${
+                    className={`px-3 py-1.5 rounded-lg transition font-semibold ${
                       alertChannel === 'slack'
-                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50 shadow'
-                        : 'text-slate-400 hover:text-white'
+                        ? 'bg-white text-black font-semibold'
+                        : 'text-[#A3A3A3] hover:text-white'
                     }`}
                   >
                     💬 Slack / Webhook
@@ -1286,70 +1286,44 @@ export default function ScadaDashboard() {
                 </div>
               </div>
 
-              {/* Endpoint configuration */}
+              {/* Endpoint security status */}
               {alertChannel === 'telegram' ? (
-                <div className="p-4 rounded-xl bg-slate-950/80 border border-sky-500/30 space-y-3">
+                <div className="p-4 rounded-xl bg-[#0A0A0A] border border-[#1A1A1A] space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-sky-300 flex items-center gap-2">
-                      <span>Telegram Bot Notification Channel</span>
+                    <span className="text-xs font-semibold text-white flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>Telegram Bot Channel Active</span>
                       <Tooltip
-                        title="Telegram Setup in 30 Seconds"
-                        content="1. Open Telegram and search @BotFather. Send /newbot to get your TELEGRAM_BOT_TOKEN. 2. Send any message to your bot. 3. Search @userinfobot to get your numeric TELEGRAM_CHAT_ID. Paste both below."
+                        title="Server-Side Encrypted Secrets"
+                        content="Credentials (TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID) are encrypted and loaded directly on the server environment. Public users and browsers cannot view or tamper with your bot keys."
                       />
                     </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/30">
-                      TELEGRAM BOT READY
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      🔒 SERVER-SIDE ENCRYPTED
                     </span>
                   </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-mono text-slate-400">Telegram Bot Token (or via .env):</label>
-                      <input
-                        type="password"
-                        value={telegramBotToken}
-                        onChange={e => setTelegramBotToken(e.target.value)}
-                        placeholder="e.g. 1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ"
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-sky-400"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-mono text-slate-400">Telegram Chat ID (User or Group):</label>
-                      <input
-                        type="text"
-                        value={telegramChatId}
-                        onChange={e => setTelegramChatId(e.target.value)}
-                        placeholder="e.g. 123456789 or -1001234567890"
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-sky-400"
-                      />
-                    </div>
-                  </div>
-                  <p className="text-[10px] text-slate-400 font-mono">
-                    💡 If left blank, automatically reads <code>TELEGRAM_BOT_TOKEN</code> and <code>TELEGRAM_CHAT_ID</code> from <code>.env</code> / <code>.env.local</code>.
+                  <p className="text-xs text-[#A3A3A3] leading-relaxed">
+                    Direct automated incident dispatch is active. When you click dispatch, GridPulse securely delivers formatted HTML alert cards directly to your registered Telegram group or personal chat without exposing tokens.
                   </p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-300 block">
-                    Slack Webhook Target URL (Optional override; defaults to server-configured webhook):
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={webhookUrl}
-                      onChange={e => setWebhookUrl(e.target.value)}
-                      placeholder="Leave empty to use pre-configured ALERT_WEBHOOK_URL, or paste custom endpoint..."
-                      className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-amber-400 transition"
-                    />
-                    {webhookUrl && (
-                      <button
-                        onClick={() => setWebhookUrl('')}
-                        className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300 transition"
-                      >
-                        Reset Default
-                      </button>
-                    )}
+                <div className="p-4 rounded-xl bg-[#0A0A0A] border border-[#1A1A1A] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-white flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>Slack Webhook Channel Active</span>
+                      <Tooltip
+                        title="Slack Alerting"
+                        content="Delivers JSON incident attachments to the designated Slack channel via server-side ALERT_WEBHOOK_URL."
+                      />
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/10 text-white border border-white/20">
+                      🔒 SERVER-SIDE WEBHOOK
+                    </span>
                   </div>
+                  <p className="text-xs text-[#A3A3A3] leading-relaxed">
+                    Webhook payload cards are routed through the backend gateway directly to the campus operations Slack channel.
+                  </p>
                 </div>
               )}
 
@@ -1358,30 +1332,26 @@ export default function ScadaDashboard() {
                 <button
                   onClick={() => handleDispatch('PEAK_SHAVING')}
                   disabled={isDispatching}
-                  className={`flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-xl text-slate-950 font-bold text-sm shadow-lg transition disabled:opacity-50 ${
-                    alertChannel === 'telegram'
-                      ? 'bg-gradient-to-r from-sky-400 to-blue-500 text-white shadow-sky-500/20 hover:brightness-110'
-                      : 'bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 shadow-amber-500/20 hover:brightness-110'
-                  }`}
+                  className="flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-xl bg-white hover:bg-neutral-200 text-black font-semibold text-sm shadow-sm active:scale-[0.99] transition disabled:opacity-50"
                 >
                   <Send className={`w-4 h-4 ${isDispatching ? 'animate-bounce' : ''}`} />
                   <span>
                     {alertChannel === 'telegram'
-                      ? 'Dispatch Peak Shaving Directive to Telegram'
-                      : 'Dispatch Peak Shaving Directive to Slack'}
+                      ? 'Dispatch Peak Shaving Directive (Telegram)'
+                      : 'Dispatch Peak Shaving Directive (Slack)'}
                   </span>
                 </button>
 
                 <button
                   onClick={() => handleDispatch('SCADA_FAULT')}
                   disabled={isDispatching}
-                  className="flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-500 text-white font-bold text-sm shadow-lg shadow-red-500/20 hover:brightness-110 active:scale-[0.99] transition disabled:opacity-50"
+                  className="flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-xl bg-[#111111] hover:bg-[#1A1A1A] text-white border border-rose-500/40 font-semibold text-sm shadow-sm active:scale-[0.99] transition disabled:opacity-50"
                 >
-                  <ShieldAlert className={`w-4 h-4 ${isDispatching ? 'animate-bounce' : ''}`} />
+                  <ShieldAlert className={`w-4 h-4 text-rose-400 ${isDispatching ? 'animate-bounce' : ''}`} />
                   <span>
                     {alertChannel === 'telegram'
-                      ? 'Dispatch Voltage Sag Alert to Telegram'
-                      : 'Dispatch Voltage Sag Alert to Slack'}
+                      ? 'Dispatch Voltage Sag Alert (Telegram)'
+                      : 'Dispatch Voltage Sag Alert (Slack)'}
                   </span>
                 </button>
               </div>

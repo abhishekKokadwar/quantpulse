@@ -1,58 +1,74 @@
 @import "tailwindcss";
 
+@theme inline {
+  --color-bg-base: #000000;
+  --color-bg-surface: #000000;
+  --color-bg-elevated: #0A0A0A;
+  --color-border: #1A1A1A;
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #A3A3A3;
+  --color-text-muted: #525252;
+  --color-critical: #FFFFFF;
+  --color-elevated: #A3A3A3;
+  --color-standard: #525252;
+  --color-patrol: #FFFFFF;
+  --color-accent: #FFFFFF;
+}
+
 :root {
-  --background: #090d16;
-  --foreground: #f1f5f9;
+  color-scheme: dark;
+  --background: #000000;
+  --foreground: #FFFFFF;
 }
 
 body {
   background-color: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   overflow-x: hidden;
 }
 
-/* SCADA Glassmorphism */
+/* OLED Pure Black Glassmorphism */
 .glass-panel {
-  background: rgba(15, 23, 42, 0.75);
+  background: rgba(10, 10, 10, 0.85);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(51, 65, 85, 0.4);
+  border: 1px solid #1A1A1A;
 }
 
 .glass-panel-glow {
-  background: rgba(15, 23, 42, 0.85);
+  background: rgba(12, 12, 12, 0.95);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(250, 204, 21, 0.25);
-  box-shadow: 0 0 20px -5px rgba(250, 204, 21, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 25px -5px rgba(255, 255, 255, 0.04);
 }
 
 .glass-panel-cyan {
-  background: rgba(15, 23, 42, 0.85);
+  background: rgba(10, 10, 10, 0.9);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(56, 189, 248, 0.25);
-  box-shadow: 0 0 20px -5px rgba(56, 189, 248, 0.15);
+  box-shadow: 0 0 20px -5px rgba(56, 189, 248, 0.08);
 }
 
-/* Custom SCADA scrollbars */
+/* Custom Minimalist Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #090d16;
+  background: #000000;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #262626;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #404040;
 }
 
 @keyframes pulse-slow {

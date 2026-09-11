@@ -751,11 +751,11 @@ export function HostelGhostLoadTab() {
         </div>
 
         {/* INTERACTIVE CONTROLS PANEL (1 COLUMN) */}
-        <div className="glass-panel p-5 rounded-2xl border border-slate-800 space-y-5 flex flex-col justify-between">
+        <div className="glass-panel p-5 rounded-2xl border border-[#1A1A1A] space-y-5 flex flex-col justify-between bg-[#0A0A0A]">
           <div>
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="flex items-center justify-between border-b border-[#1A1A1A] pb-3">
               <h3 className="font-bold text-sm text-white flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-amber-400" />
+                <Sliders className="w-4 h-4 text-white" />
                 <span>Waste Simulation Lab</span>
               </h3>
               <Tooltip
@@ -766,14 +766,14 @@ export function HostelGhostLoadTab() {
 
             {/* Target Wing Selector */}
             <div className="mt-4 space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+              <label className="text-xs font-semibold text-[#A3A3A3] flex items-center justify-between">
                 <span>Select Target Sub-Meter:</span>
-                <span className="text-[11px] font-mono text-amber-400">{activeSelected.meterId}</span>
+                <span className="text-[11px] font-mono text-white">{activeSelected.meterId}</span>
               </label>
               <select
                 value={selectedWing}
                 onChange={e => setSelectedWing(e.target.value)}
-                className="w-full text-xs font-mono bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-amber-500"
+                className="w-full text-xs font-mono bg-black border border-[#222222] rounded-xl px-3 py-2 text-white focus:outline-none focus:border-white"
               >
                 {meters.map(m => (
                   <option key={m.meterId} value={m.meterId}>
@@ -785,7 +785,7 @@ export function HostelGhostLoadTab() {
 
             {/* Waste Injection Toggle */}
             <div className="mt-4 space-y-2">
-              <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+              <label className="text-xs font-semibold text-[#A3A3A3] flex items-center justify-between">
                 <span>Synthetic Waste Load Injection:</span>
                 <Tooltip
                   title="Square-Wave AC vs Resistive Load"
@@ -797,34 +797,34 @@ export function HostelGhostLoadTab() {
                   onClick={() => setInjectedWasteType('AC_COMPRESSOR')}
                   className={`px-2 py-2 rounded-xl border text-center transition ${
                     injectedWasteType === 'AC_COMPRESSOR'
-                      ? 'bg-amber-500/20 border-amber-500/60 text-amber-300 font-bold'
-                      : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-white'
+                      ? 'bg-white text-black border-white font-bold'
+                      : 'bg-[#111111] border-[#222222] text-[#A3A3A3] hover:text-white hover:bg-[#1A1A1A]'
                   }`}
                 >
                   <p className="text-[11px]">AC Cycle</p>
-                  <p className="text-[9px] text-slate-500 mt-0.5">+14 kW (0.78 PF)</p>
+                  <p className={`text-[9px] mt-0.5 ${injectedWasteType === 'AC_COMPRESSOR' ? 'text-black/70' : 'text-[#666666]'}`}>+14 kW (0.78 PF)</p>
                 </button>
                 <button
                   onClick={() => setInjectedWasteType('RESISTIVE_LIGHTING')}
                   className={`px-2 py-2 rounded-xl border text-center transition ${
                     injectedWasteType === 'RESISTIVE_LIGHTING'
-                      ? 'bg-purple-500/20 border-purple-500/60 text-purple-300 font-bold'
-                      : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-white'
+                      ? 'bg-white text-black border-white font-bold'
+                      : 'bg-[#111111] border-[#222222] text-[#A3A3A3] hover:text-white hover:bg-[#1A1A1A]'
                   }`}
                 >
                   <p className="text-[11px]">Resistive</p>
-                  <p className="text-[9px] text-slate-500 mt-0.5">+10 kW (0.99 PF)</p>
+                  <p className={`text-[9px] mt-0.5 ${injectedWasteType === 'RESISTIVE_LIGHTING' ? 'text-black/70' : 'text-[#666666]'}`}>+10 kW (0.99 PF)</p>
                 </button>
                 <button
                   onClick={() => setInjectedWasteType('NONE')}
                   className={`px-2 py-2 rounded-xl border text-center transition ${
                     injectedWasteType === 'NONE'
-                      ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-300 font-bold'
-                      : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-white'
+                      ? 'bg-white text-black border-white font-bold'
+                      : 'bg-[#111111] border-[#222222] text-[#A3A3A3] hover:text-white hover:bg-[#1A1A1A]'
                   }`}
                 >
                   <p className="text-[11px]">Clear Waste</p>
-                  <p className="text-[9px] text-slate-500 mt-0.5">Nominal Base</p>
+                  <p className={`text-[9px] mt-0.5 ${injectedWasteType === 'NONE' ? 'text-black/70' : 'text-[#666666]'}`}>Nominal Base</p>
                 </button>
               </div>
             </div>
@@ -832,14 +832,14 @@ export function HostelGhostLoadTab() {
             {/* Hysteresis Time Stepper */}
             <div className="mt-4 space-y-1.5">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-300 flex items-center gap-1">
+                <span className="font-semibold text-[#A3A3A3] flex items-center gap-1">
                   <span>Hysteresis Elevated Duration:</span>
                   <Tooltip
                     title="45-Minute Hysteresis Window"
                     content="To eliminate false alarms caused by temporary student use (e.g. electric kettles, steam irons, or 20-minute study breaks), an alert only triggers if Z > 2.5 persists continuously for >= 45 minutes."
                   />
                 </span>
-                <span className="font-mono text-amber-400 font-bold">{elevatedMinutesSim} mins</span>
+                <span className="font-mono text-white font-bold">{elevatedMinutesSim} mins</span>
               </div>
               <input
                 type="range"
@@ -848,11 +848,11 @@ export function HostelGhostLoadTab() {
                 step="5"
                 value={elevatedMinutesSim}
                 onChange={e => setElevatedMinutesSim(parseInt(e.target.value))}
-                className="w-full accent-amber-500 cursor-pointer"
+                className="w-full accent-white cursor-pointer"
               />
-              <div className="flex justify-between text-[10px] font-mono text-slate-500">
+              <div className="flex justify-between text-[10px] font-mono text-[#666666]">
                 <span>0m (Reset)</span>
-                <span className="text-amber-400 font-semibold">45m (Trigger Gate)</span>
+                <span className="text-white font-semibold">45m (Trigger Gate)</span>
                 <span>90m (Sustained)</span>
               </div>
             </div>
@@ -860,14 +860,14 @@ export function HostelGhostLoadTab() {
             {/* Wi-Fi Occupancy Density Slider */}
             <div className="mt-4 space-y-1.5">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-300 flex items-center gap-1">
+                <span className="font-semibold text-[#A3A3A3] flex items-center gap-1">
                   <span>Wi-Fi AP Connected Clients:</span>
                   <Tooltip
                     title="Wi-Fi Occupancy Density Cross-Validation"
                     content="Leverages existing campus Cisco/Aruba Wi-Fi access points. When an entire hostel wing has 0-3 connected MAC addresses during class hours while drawing 28 kW, it proves strong empirical evidence that rooms are vacant."
                   />
                 </span>
-                <span className="font-mono text-cyan-400 font-bold">{wifiClientCount} devices</span>
+                <span className="font-mono text-white font-bold">{wifiClientCount} devices</span>
               </div>
               <input
                 type="range"
@@ -875,10 +875,10 @@ export function HostelGhostLoadTab() {
                 max="50"
                 value={wifiClientCount}
                 onChange={e => setWifiClientCount(parseInt(e.target.value))}
-                className="w-full accent-cyan-500 cursor-pointer"
+                className="w-full accent-white cursor-pointer"
               />
               <div className="flex items-center justify-between text-[11px] font-mono mt-1">
-                <span className="text-slate-400">Waste Confidence:</span>
+                <span className="text-[#A3A3A3]">Waste Confidence:</span>
                 <span
                   className={`font-bold ${
                     wasteConfidencePct > 75
@@ -895,15 +895,15 @@ export function HostelGhostLoadTab() {
           </div>
 
           {/* SIMULATED CONTACTOR & WEBHOOK ACTIONS */}
-          <div className="space-y-3 pt-3 border-t border-slate-800">
+          <div className="space-y-3 pt-3 border-t border-[#1A1A1A]">
             {/* Simulated Smart Breaker Soft-Trip */}
-            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+            <div className="p-3 rounded-xl bg-[#0E0E0E] border border-[#1E1E1E] space-y-2">
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-1.5">
                   <PowerOff className="w-3.5 h-3.5 text-rose-400" />
-                  <span className="font-semibold text-slate-200">Simulated Breaker Soft-Trip:</span>
+                  <span className="font-semibold text-white">Simulated Breaker Soft-Trip:</span>
                 </div>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30">
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">
                   SIMULATED
                 </span>
               </div>
@@ -912,15 +912,15 @@ export function HostelGhostLoadTab() {
                   onClick={() => setIsBreakerTripped(!isBreakerTripped)}
                   className={`flex-1 py-1.5 rounded-lg text-xs font-mono font-bold transition flex items-center justify-center gap-1.5 ${
                     isBreakerTripped
-                      ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/50'
-                      : 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/50'
+                      ? 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30'
+                      : 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30'
                   }`}
                 >
                   <PowerOff className="w-3.5 h-3.5" />
                   <span>{isBreakerTripped ? 'RESTORE CONTACTOR' : 'TRIP WING CONTACTOR'}</span>
                 </button>
               </div>
-              <p className="text-[10px] text-slate-500 leading-tight">
+              <p className="text-[10px] text-[#666666] leading-tight">
                 Simulates remote breaker trip on vacant wing sub-circuits. Protected with software safety interlock.
               </p>
             </div>
@@ -929,7 +929,7 @@ export function HostelGhostLoadTab() {
             <button
               onClick={handleDispatchWardenAlert}
               disabled={cooldownRemaining > 0 || activeSelected.state !== 'CRITICAL_ALERT'}
-              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-sky-500/20 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full py-2.5 rounded-xl bg-white hover:bg-neutral-200 text-black font-semibold text-xs flex items-center justify-center gap-2 shadow-sm active:scale-[0.99] transition disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Send className="w-3.5 h-3.5" />
               <span>
@@ -940,7 +940,7 @@ export function HostelGhostLoadTab() {
             </button>
 
             {webhookStatus && (
-              <p className="text-[11px] text-center font-mono text-cyan-300">
+              <p className="text-[11px] text-center font-mono text-emerald-400">
                 {webhookStatus === 'SENT_TELEGRAM'
                   ? '✓ Incident Alert Delivered to Telegram Bot Channel!'
                   : webhookStatus === 'SENT_SLACK'
@@ -953,8 +953,8 @@ export function HostelGhostLoadTab() {
       </div>
 
       {/* HOSTEL FLEET SUB-METER MATRIX TABLE */}
-      <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/40">
+      <div className="glass-panel rounded-2xl border border-[#1A1A1A] overflow-hidden bg-[#0A0A0A]">
+        <div className="px-5 py-4 border-b border-[#1A1A1A] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-black/40">
           <div>
             <h3 className="font-bold text-sm text-white flex items-center gap-2">
               <span>Campus Hostel Sub-Meter Telemetry Matrix (All 12 Wings)</span>
@@ -963,11 +963,11 @@ export function HostelGhostLoadTab() {
                 content="Real-time status across 12 smart sub-meters representing Boys Hostels BH1 through BH4. Compares instantaneous observed power against the robust 15-minute weekday median."
               />
             </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-[#A3A3A3] mt-0.5">
               Click any wing to focus the diagnostic charts and simulation controls above.
             </p>
           </div>
-          <div className="text-xs font-mono text-slate-400 flex items-center gap-2">
+          <div className="text-xs font-mono text-[#A3A3A3] flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span>12 Sub-Meters Synchronized</span>
           </div>
@@ -975,7 +975,7 @@ export function HostelGhostLoadTab() {
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-950/80 text-slate-400 font-mono uppercase text-[10px] tracking-wider border-b border-slate-800">
+            <thead className="bg-black text-[#A3A3A3] font-mono uppercase text-[10px] tracking-wider border-b border-[#1A1A1A]">
               <tr>
                 <th className="px-4 py-3">Meter ID</th>
                 <th className="px-4 py-3">Hostel &amp; Wing</th>
@@ -988,7 +988,7 @@ export function HostelGhostLoadTab() {
                 <th className="px-4 py-3">NILM Disaggregated Signature</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 font-mono text-slate-200">
+            <tbody className="divide-y divide-[#1A1A1A] font-mono text-[#E5E5E5]">
               {meters.map(m => {
                 const isSelected = m.meterId === selectedWing;
                 return (
@@ -997,19 +997,19 @@ export function HostelGhostLoadTab() {
                     onClick={() => setSelectedWing(m.meterId)}
                     className={`cursor-pointer transition-colors ${
                       isSelected
-                        ? 'bg-amber-500/10 hover:bg-amber-500/15'
-                        : 'hover:bg-slate-800/40'
+                        ? 'bg-white/10 hover:bg-white/15'
+                        : 'hover:bg-[#141414]'
                     }`}
                   >
-                    <td className="px-4 py-3 font-bold text-amber-400 flex items-center gap-1.5">
-                      {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />}
+                    <td className="px-4 py-3 font-bold text-white flex items-center gap-1.5">
+                      {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
                       <span>{m.meterId}</span>
                     </td>
-                    <td className="px-4 py-3 font-sans font-medium text-slate-100">
+                    <td className="px-4 py-3 font-sans font-medium text-white">
                       <div>{m.buildingName}</div>
-                      <div className="text-[11px] text-slate-400 font-mono">{m.wing}</div>
+                      <div className="text-[11px] text-[#A3A3A3] font-mono">{m.wing}</div>
                     </td>
-                    <td className="px-4 py-3 text-slate-400">{m.baselineMedianKw.toFixed(1)} kW</td>
+                    <td className="px-4 py-3 text-[#A3A3A3]">{m.baselineMedianKw.toFixed(1)} kW</td>
                     <td className="px-4 py-3 font-bold text-white">{m.observedKw.toFixed(1)} kW</td>
                     <td className="px-4 py-3">
                       {m.excessKw > 0 ? (
