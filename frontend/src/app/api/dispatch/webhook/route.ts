@@ -20,7 +20,41 @@ export async function POST(request: Request) {
 
     let slackPayload: any = {};
 
-    if (type === 'PEAK_SHAVING') {
+    if (type === 'GHOST_LOAD') {
+      const {
+        meterId = 'M001',
+        wing = 'Wing A (Ground & 1st Flr)',
+        building = 'Boys Hostel 1',
+        observedKw = 26.8,
+        excessKw = 14.4,
+        elevatedMinutes = 48,
+        costInr = 92,
+        nilmCause = 'Likely Unattended AC (~4 units active)',
+        wifiClients = 2,
+      } = body;
+
+      slackPayload = {
+        username: 'GridPulse Hostel Ghost Load Intelligence',
+        icon_emoji: ':bed:',
+        attachments: [
+          {
+            color: '#f43f5e',
+            title: `🚨 GHOST LOAD ALERT: ${building} - ${wing} [${meterId}]`,
+            text: `*Unoccupied Room Waste Detected During Academic Hours:*\nSub-meter *${meterId}* in *${building}* has registered sustained elevated demand exceeding the robust Median baseline for *${elevatedMinutes} consecutive minutes*.\n\n<http://localhost:3000|Open GridPulse SCADA Console>`,
+            fields: [
+              { title: 'Observed Load', value: `${observedKw.toFixed(1)} kW`, short: true },
+              { title: 'Excess Wasted Power', value: `+${excessKw.toFixed(1)} kW`, short: true },
+              { title: 'Active Duration', value: `${elevatedMinutes} minutes`, short: true },
+              { title: 'Estimated Waste Cost', value: `₹${costInr.toLocaleString()} INR`, short: true },
+              { title: 'Wi-Fi AP Density', value: `${wifiClients} active devices (Strong Vacancy Evidence)`, short: true },
+              { title: 'NILM Inferred Signature', value: nilmCause, short: true },
+            ],
+            footer: `GridPulse NILM Watchdog • Cooldown: 60m • Synced at ${nowTime}`,
+            mrkdwn_in: ['text', 'fields'],
+          },
+        ],
+      };
+    } else if (type === 'PEAK_SHAVING') {
       const actionText = actions.length > 0
         ? actions.map((a: any) => `• *Tier ${a.tier} (${a.category}):* ${a.name} -> ${a.active_shed_kw} kW shed`).join('\n')
         : '• *Tier 1 (Soft Shedding):* Non-Critical Facilities & EV Setback -> 45.0 kW shed\n• *Tier 2 (Chiller Cycling):* Academic HVAC Duty Cycling -> 40.5 kW shed';

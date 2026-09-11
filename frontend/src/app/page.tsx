@@ -34,18 +34,25 @@ import {
   Pause,
   Sparkles,
   Wifi,
+  BedDouble,
+  Workflow,
+  BookOpen,
 } from 'lucide-react';
+import Link from 'next/link';
 import {
   AreaChart,
   Area,
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   ResponsiveContainer,
   BarChart,
   Bar,
 } from 'recharts';
+import { Tooltip } from '@/components/Tooltip';
+import { HostelGhostLoadTab } from '@/components/HostelGhostLoadTab';
+import { FeatureExplainerModal } from '@/components/FeatureExplainerModal';
 
 interface StreamRow {
   id: number;
@@ -108,8 +115,9 @@ interface WebhookLog {
 }
 
 export default function ScadaDashboard() {
-  // Navigation: Clear, self-explanatory operational tabs
-  const [activeTab, setActiveTab] = useState<'stream' | 'dispatch' | 'buildings' | 'table'>('stream');
+  // Navigation: Clear, self-explanatory operational tabs (includes Phase 11 Hostel Waste)
+  const [activeTab, setActiveTab] = useState<'ghostload' | 'stream' | 'dispatch' | 'buildings' | 'table'>('ghostload');
+  const [isExplainerOpen, setIsExplainerOpen] = useState<boolean>(false);
 
   // Refresh Cadence
   const [refreshInterval, setRefreshInterval] = useState<number>(3000); // 3000ms
@@ -580,6 +588,24 @@ export default function ScadaDashboard() {
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-amber-400' : ''}`} />
           </button>
 
+          <Link
+            href="/howItWorks"
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:text-amber-200 transition"
+            title="Open interactive pipeline flow diagram and complete 11-phase architecture blueprint"
+          >
+            <Workflow className="w-3.5 h-3.5 text-amber-400" />
+            <span>🧭 Architecture &amp; Pipeline (/howItWorks)</span>
+          </Link>
+
+          <button
+            onClick={() => setIsExplainerOpen(true)}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-amber-300 transition"
+            title="Open searchable explainer guide for all dashboard features"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+            <span>💡 Feature Guide</span>
+          </button>
+
           <a
             href="https://share.streamlit.io"
             target="_blank"
@@ -587,7 +613,7 @@ export default function ScadaDashboard() {
             className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-amber-300 transition"
           >
             <span>Analytics Studio</span>
-            <ExternalLink className="w-3 h-3" />
+            <ExternalLink className="w-3.5 h-3.5" />
           </a>
         </div>
       </header>
@@ -639,6 +665,10 @@ export default function ScadaDashboard() {
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
               <span className={`w-2 h-2 rounded-full ${isLiveStream ? 'bg-amber-400 animate-ping' : 'bg-slate-500'}`} />
               Total Campus Power Demand
+              <Tooltip
+                title="Total Campus Power Demand (kW)"
+                content="Real-time instantaneous active power aggregated across all 42 smart sub-meters. Computed continuously with sub-second sliding window updates from Apache Spark and Kafka."
+              />
             </span>
             <Flame className="w-4 h-4 text-amber-400" />
           </div>
@@ -660,8 +690,12 @@ export default function ScadaDashboard() {
         <div className="glass-panel p-5 rounded-2xl relative overflow-hidden group hover:border-cyan-500/50 transition-all">
           <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-cyan-500/20 transition-all" />
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Active Sub-Meters & Stream
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+              <span>Active Sub-Meters &amp; Stream</span>
+              <Tooltip
+                title="Sub-Meter Fleet Health"
+                content="Tracks the 42 operational IoT sub-meters across Hostels, Departments, Lecture Theatres, and Support Facilities. Verifies telemetry packet delivery and ingestion freshness."
+              />
             </span>
             <Cpu className="w-4 h-4 text-cyan-400" />
           </div>
@@ -683,8 +717,12 @@ export default function ScadaDashboard() {
         <div className="glass-panel p-5 rounded-2xl relative overflow-hidden group hover:border-emerald-500/50 transition-all">
           <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-emerald-500/20 transition-all" />
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Grid Voltage & Frequency
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+              <span>Grid Voltage &amp; Frequency</span>
+              <Tooltip
+                title="Grid Quality & Diagnostics"
+                content="Nominal 3-phase campus grid parameters. Voltage is maintained within 220V–240V, and frequency is locked to national standard 50.00 Hz to detect brownouts, sags, or harmonics."
+              />
             </span>
             <Gauge className="w-4 h-4 text-emerald-400" />
           </div>
@@ -706,8 +744,12 @@ export default function ScadaDashboard() {
         <div className="glass-panel p-5 rounded-2xl relative overflow-hidden group hover:border-purple-500/50 transition-all">
           <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-purple-500/20 transition-all" />
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Automated Dispatch Status
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+              <span>Automated Dispatch Status</span>
+              <Tooltip
+                title="Demand Response Peak-Shaving"
+                content="Compares forecasted peak load against utility contract ceilings (800 kW). Automatically triggers 3-tier load shedding to eliminate expensive maximum demand penalty charges."
+              />
             </span>
             <Activity className="w-4 h-4 text-purple-400" />
           </div>
@@ -732,6 +774,12 @@ export default function ScadaDashboard() {
       <section className="px-6 pt-3">
         <div className="flex items-center gap-2 border-b border-slate-800/80 pb-px overflow-x-auto">
           {[
+            {
+              id: 'ghostload',
+              label: '🛏️ Hostel Waste & Ghost Load Monitor',
+              desc: 'Phase 11: Non-Intrusive NILM ML for unoccupied rooms',
+              icon: BedDouble,
+            },
             {
               id: 'stream',
               label: '⚡ Real-Time Power Telemetry',
@@ -782,6 +830,11 @@ export default function ScadaDashboard() {
 
       {/* MAIN TAB CONTENT AREA */}
       <main className="flex-1 px-6 py-6 max-w-[1600px] w-full mx-auto">
+        {/* =================================================================== */}
+        {/* TAB 0: HOSTEL GHOST LOAD & UNOCCUPIED ROOM WASTE MONITOR (PHASE 11) */}
+        {/* =================================================================== */}
+        {activeTab === 'ghostload' && <HostelGhostLoadTab />}
+
         {/* =================================================================== */}
         {/* TAB 1: REAL-TIME POWER TELEMETRY */}
         {/* =================================================================== */}
@@ -858,7 +911,7 @@ export default function ScadaDashboard() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" vertical={false} />
                       <XAxis dataKey="time" stroke="#64748B" fontSize={11} tickLine={false} />
                       <YAxis stroke="#64748B" fontSize={11} tickLine={false} domain={['auto', 'auto']} unit=" kW" />
-                      <Tooltip
+                      <RechartsTooltip
                         contentStyle={{
                           backgroundColor: '#0F172A',
                           borderColor: '#334155',
@@ -910,7 +963,7 @@ export default function ScadaDashboard() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" horizontal={false} />
                       <XAxis type="number" stroke="#64748B" fontSize={10} unit=" kW" />
                       <YAxis type="category" dataKey="name" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                      <Tooltip
+                      <RechartsTooltip
                         contentStyle={{
                           backgroundColor: '#0F172A',
                           borderColor: '#334155',
@@ -1490,6 +1543,9 @@ export default function ScadaDashboard() {
           <span>Refresh Cadence: {refreshInterval > 0 ? `${refreshInterval / 1000}s` : 'Paused'}</span>
         </div>
       </footer>
+
+      {/* SEARCHABLE FEATURE EXPLAINER MODAL */}
+      <FeatureExplainerModal isOpen={isExplainerOpen} onClose={() => setIsExplainerOpen(false)} />
     </div>
   );
 }
