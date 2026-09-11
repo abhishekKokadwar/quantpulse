@@ -407,13 +407,14 @@ export function HostelGhostLoadTab() {
         }),
       });
       const data = await res.json();
-      if (data.success) {
-        setWebhookStatus('SENT_SUCCESS');
-        setCooldownRemaining(60); // 60 min cooldown
+      if (data.channel === 'TELEGRAM' || data.status === 'SENT_TELEGRAM') {
+        setWebhookStatus('SENT_TELEGRAM');
+      } else if (data.channel === 'SLACK' || data.status === 'SENT_SLACK') {
+        setWebhookStatus('SENT_SLACK');
       } else {
         setWebhookStatus('SIMULATED_SUCCESS');
-        setCooldownRemaining(60);
       }
+      setCooldownRemaining(60);
     } catch {
       setWebhookStatus('SIMULATED_SUCCESS');
       setCooldownRemaining(60);
@@ -924,23 +925,27 @@ export function HostelGhostLoadTab() {
               </p>
             </div>
 
-            {/* Warden Webhook Dispatch Button */}
+            {/* Warden Telegram / Webhook Dispatch Button */}
             <button
               onClick={handleDispatchWardenAlert}
               disabled={cooldownRemaining > 0 || activeSelected.state !== 'CRITICAL_ALERT'}
-              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-sky-500/20 transition disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Send className="w-3.5 h-3.5" />
               <span>
                 {cooldownRemaining > 0
                   ? `Cooldown Active (${cooldownRemaining}s)`
-                  : 'Dispatch Incident Card to Warden Webhook'}
+                  : 'Dispatch Incident to Telegram / Webhook'}
               </span>
             </button>
 
             {webhookStatus && (
-              <p className="text-[11px] text-center font-mono text-emerald-400">
-                ✓ Webhook Incident Card Successfully Dispatched (60m cooldown enforced)
+              <p className="text-[11px] text-center font-mono text-cyan-300">
+                {webhookStatus === 'SENT_TELEGRAM'
+                  ? '✓ Incident Alert Delivered to Telegram Bot Channel!'
+                  : webhookStatus === 'SENT_SLACK'
+                  ? '✓ Incident Alert Delivered to Slack Channel!'
+                  : '✓ Webhook Incident Card Recorded (Mock Console / 60m Cooldown Active)'}
               </p>
             )}
           </div>

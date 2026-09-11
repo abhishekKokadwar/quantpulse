@@ -102,29 +102,117 @@ export async function POST(request: Request) {
       };
     }
 
-    if (!targetUrl || !targetUrl.startsWith('http')) {
+    const botToken = body.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = body.telegramChatId || process.env.TELEGRAM_CHAT_ID;
+    const isTelegramDirect = Boolean(botToken && chatId);
+    const isTelegramUrl = Boolean(targetUrl && targetUrl.includes('api.telegram.org'));
+
+    // Construct Telegram HTML message
+    let telegramText = '';
+    if (type === 'GHOST_LOAD') {
+      const {
+        meterId = 'M001',
+        wing = 'Wing A (Ground & 1st Flr)',
+        building = 'Boys Hostel 1',
+        observedKw = 26.8,
+        excessKw = 14.4,
+        elevatedMinutes = 48,
+        costInr = 92,
+        nilmCause = 'Likely Unattended AC (~4 units active)',
+        wifiClients = 2,
+      } = body;
+      telegramText = [
+        '🚨 <b>GRIDPULSE GHOST LOAD ALERT</b>',
+        `📍 <b>Facility:</b> ${building} — ${wing} [<code>${meterId}</code>]`,
+        `⚡ <b>Observed Demand:</b> ${observedKw.toFixed(1)} kW (<b>+${excessKw.toFixed(1)} kW excess</b>)`,
+        `⏱️ <b>Unoccupied Duration:</b> ${elevatedMinutes} minutes`,
+        `💰 <b>Estimated Wasted Cost:</b> ₹${costInr.toLocaleString()} INR`,
+        `📶 <b>Wi-Fi Density:</b> ${wifiClients} connected devices (Strong Vacancy Evidence)`,
+        `🔍 <b>NILM Diagnosis:</b> ${nilmCause}`,
+        '',
+        '🔗 <a href="http://localhost:3000">Open GridPulse SCADA Console</a>',
+      ].join('\n');
+    } else if (type === 'PEAK_SHAVING') {
+      telegramText = [
+        '⚠️ <b>GRIDPULSE PEAK DEMAND BREACH ALERT</b>',
+        `🔥 <b>Forecast Peak:</b> ${peakKw.toFixed(1)} kW`,
+        `📊 <b>Contract Threshold:</b> ${thresholdKw.toFixed(1)} kW`,
+        `📈 <b>Projected Overload:</b> +${overloadKw.toFixed(1)} kW`,
+        `💵 <b>Potential Penalty Avoidance:</b> ₹${savings.toLocaleString()} INR`,
+        '',
+        '🔗 <a href="http://localhost:3000">Open GridPulse Operations Portal</a>',
+      ].join('\n');
+    } else {
+      telegramText = [
+        '🚨 <b>GRIDPULSE SCADA FAULT ALERT</b>',
+        '⚡ <b>Critical Voltage Sag Detected</b>',
+        '',
+        '🔗 <a href="http://localhost:3000">Open GridPulse Operations Portal</a>',
+      ].join('\n');
+    }
+
+    // 1. Deliver via Telegram Bot API
+    if (isTelegramDirect || isTelegramUrl) {
+      const tgUrl = isTelegramUrl
+        ? targetUrl!
+        : `https://api.telegram.org/bot${botToken}/sendMessage`;
+
+      const tgPayload: any = {
+        chat_id: chatId,
+        text: telegramText,
+        parse_mode: 'HTML',
+        disable_web_page_preview: false,
+      };
+
+      const tgRes = await fetch(tgUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tgPayload),
+      });
+
+      const tgJson = await tgRes.json().catch(() => ({}));
       return NextResponse.json({
-        success: true,
-        status: 'SIMULATED_SUCCESS',
-        statusCode: 200,
-        message: 'Dispatched to Mock Console (No URL provided)',
+        success: tgRes.ok,
+        status: tgRes.ok ? 'SENT_TELEGRAM' : `FAILED_TELEGRAM_${tgRes.status}`,
+        statusCode: tgRes.status,
+        message: tgRes.ok
+          ? 'Successfully delivered incident alert to Telegram!'
+          : `Telegram delivery failed: ${tgJson.description || tgRes.statusText}`,
+        channel: 'TELEGRAM',
+        telegramText,
         payload: slackPayload,
+        timestamp: new Date().toISOString(),
       });
     }
 
-    // Live HTTP Dispatch to Slack
-    const slackRes = await fetch(targetUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(slackPayload),
-    });
+    // 2. Deliver via Slack / MS Teams / Discord Webhook
+    if (targetUrl && targetUrl.startsWith('http')) {
+      const slackRes = await fetch(targetUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(slackPayload),
+      });
 
+      return NextResponse.json({
+        success: slackRes.ok,
+        status: slackRes.ok ? 'SENT_SLACK' : `FAILED_${slackRes.status}`,
+        statusCode: slackRes.status,
+        message: slackRes.ok ? 'Successfully delivered incident card to Slack.' : 'Slack delivery failed.',
+        channel: 'SLACK',
+        payload: slackPayload,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // 3. Fallback: Mock / Simulated Console
     return NextResponse.json({
-      success: slackRes.ok,
-      status: slackRes.ok ? 'SENT' : `FAILED_${slackRes.status}`,
-      statusCode: slackRes.status,
-      message: slackRes.ok ? 'Successfully delivered incident card to Slack.' : 'Slack delivery failed.',
+      success: true,
+      status: 'SIMULATED_SUCCESS',
+      statusCode: 200,
+      message: 'Dispatched to Mock Console (Configure TELEGRAM_BOT_TOKEN or ALERT_WEBHOOK_URL to send live notifications)',
+      channel: 'SIMULATED',
       payload: slackPayload,
+      telegramText,
       timestamp: new Date().toISOString(),
     });
   } catch (error: any) {

@@ -9,7 +9,7 @@ import sys
 import json
 import time
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 import requests
 from dotenv import load_dotenv
 
@@ -38,8 +38,106 @@ def get_default_webhook_url() -> str:
             pass
     return url
 
+
+def get_telegram_config() -> Dict[str, str]:
+    """Returns the Telegram Bot Token and Chat ID from environment or st.secrets."""
+    token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+    if not token or not chat_id:
+        try:
+            import streamlit as st
+            if hasattr(st, "secrets"):
+                token = token or str(st.secrets.get("TELEGRAM_BOT_TOKEN", "")).strip()
+                chat_id = chat_id or str(st.secrets.get("TELEGRAM_CHAT_ID", "")).strip()
+        except Exception:
+            pass
+    return {"bot_token": token, "chat_id": chat_id}
+
+
 DEFAULT_WEBHOOK_URL = get_default_webhook_url()
 DISPATCH_HISTORY_FILE = os.path.join(PROJECT_ROOT, "tmp", "webhook_dispatch_history.json")
+
+
+def format_telegram_message(
+    title: str,
+    summary: str,
+    fields: List[Dict[str, str]],
+    portal_url: str = "http://localhost:3000",
+) -> str:
+    """Formats incident information into clean Telegram HTML markup."""
+    clean_summary = summary.replace("*", "")
+    lines = [
+        f"⚡ <b>GRIDPULSE SCADA ALERT</b>",
+        f"<b>{title}</b>",
+        "",
+        clean_summary,
+        "",
+    ]
+    for f in fields:
+        clean_val = str(f.get("value", "")).replace("*", "")
+        lines.append(f"• <b>{f['name']}:</b> {clean_val}")
+    lines.append("")
+    lines.append(f'🔗 <a href="{portal_url}">Open GridPulse Operations Console</a>')
+    return "\n".join(lines)
+
+
+def _deliver_alert(
+    url: Optional[str],
+    slack_payload: Dict[str, Any],
+    telegram_text: str,
+) -> Tuple[str, int]:
+    """
+    Intelligently routes alerts to Telegram Bot API or Slack/Discord webhook.
+    Priority order:
+    1. Direct Telegram Bot Token & Chat ID
+    2. Explicit Telegram webhook/API URL
+    3. Slack / Teams / Discord webhook URL
+    4. Mock / Simulation fallback
+    """
+    tg_config = get_telegram_config()
+    bot_token = tg_config["bot_token"]
+    chat_id = tg_config["chat_id"]
+
+    # 1. Deliver via Telegram Bot API if configured
+    if bot_token and chat_id:
+        tg_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        try:
+            resp = requests.post(
+                tg_url,
+                json={
+                    "chat_id": chat_id,
+                    "text": telegram_text,
+                    "parse_mode": "HTML",
+                    "disable_web_page_preview": False,
+                },
+                timeout=5,
+            )
+            return ("SENT_TELEGRAM", resp.status_code)
+        except Exception as e:
+            return (f"FAILED_TELEGRAM: {e}", 500)
+
+    # 2. If URL itself is a Telegram Bot endpoint
+    if url and "api.telegram.org" in url:
+        try:
+            resp = requests.post(
+                url,
+                json={"text": telegram_text, "parse_mode": "HTML"},
+                timeout=5,
+            )
+            return ("SENT_TELEGRAM", resp.status_code)
+        except Exception as e:
+            return (f"FAILED_TELEGRAM: {e}", 500)
+
+    # 3. Deliver via Standard Slack / Discord / MS Teams webhook
+    if url and url.startswith("http"):
+        try:
+            resp = requests.post(url, json=slack_payload, timeout=5)
+            return ("SENT", resp.status_code)
+        except Exception as e:
+            return (f"FAILED: {e}", 500)
+
+    # 4. Simulation fallback
+    return ("SIMULATED_SUCCESS", 200)
 
 
 def _record_dispatch_history(entry: Dict[str, Any]):
@@ -132,26 +230,23 @@ def dispatch_peak_shaving_alert(dispatch_plan: Dict[str, Any], webhook_url: Opti
         icon_emoji=":battery:",
     )
 
-    result_status = "SIMULATED_SUCCESS"
-    status_code = 200
+    telegram_text = format_telegram_message(
+        title=f"IMPENDING PEAK DEMAND BREACH (+{overload:.1f} kW)",
+        summary="Automated Demand Response system has triggered peak-shaving countermeasures to prevent contract demand penalties.",
+        fields=fields,
+    )
 
-    if url and url.startswith("http"):
-        try:
-            resp = requests.post(url, json=payload, timeout=5)
-            result_status = "SENT"
-            status_code = resp.status_code
-        except Exception as e:
-            result_status = f"FAILED: {e}"
-            status_code = 500
+    result_status, status_code = _deliver_alert(url, payload, telegram_text)
 
     record = {
         "timestamp": datetime.now().isoformat(),
         "event_type": "PEAK_SHAVING_DISPATCH",
         "title": f"Peak Demand Breach (+{overload:.1f} kW)",
-        "target_url": url if url else "MOCK_CONSOLE",
+        "target_url": url if url else ("TELEGRAM_BOT" if get_telegram_config()["bot_token"] else "MOCK_CONSOLE"),
         "status": result_status,
         "status_code": status_code,
         "payload": payload,
+        "telegram_text": telegram_text,
     }
     _record_dispatch_history(record)
     return record
@@ -188,26 +283,23 @@ def dispatch_scada_fault_alert(
         icon_emoji=":rotating_light:",
     )
 
-    result_status = "SIMULATED_SUCCESS"
-    status_code = 200
+    telegram_text = format_telegram_message(
+        title=f"SCADA Electrical Fault: {alert_type} [{severity}]",
+        summary=f"Sub-meter {meter_id} in {building_id} observed a {alert_type} breach ({metric_value:.2f} vs limit {threshold_value:.2f}).",
+        fields=fields,
+    )
 
-    if url and url.startswith("http"):
-        try:
-            resp = requests.post(url, json=payload, timeout=5)
-            result_status = "SENT"
-            status_code = resp.status_code
-        except Exception as e:
-            result_status = f"FAILED: {e}"
-            status_code = 500
+    result_status, status_code = _deliver_alert(url, payload, telegram_text)
 
     record = {
         "timestamp": datetime.now().isoformat(),
         "event_type": f"SCADA_{alert_type}",
         "title": f"{alert_type} at {meter_id} ({building_id})",
-        "target_url": url if url else "MOCK_CONSOLE",
+        "target_url": url if url else ("TELEGRAM_BOT" if get_telegram_config()["bot_token"] else "MOCK_CONSOLE"),
         "status": result_status,
         "status_code": status_code,
         "payload": payload,
+        "telegram_text": telegram_text,
     }
     _record_dispatch_history(record)
     return record
@@ -276,28 +368,28 @@ def dispatch_ghost_load_alert(
         icon_emoji=":bed:",
     )
 
-    result_status = "SIMULATED_SUCCESS"
-    status_code = 200
+    telegram_text = format_telegram_message(
+        title=f"🚨 GHOST LOAD ALERT: {wing_id}",
+        summary=(
+            f"Unattended Energy Waste Alert: {wing_id} is exhibiting +{excess_kw:.1f} kW above expected "
+            f"academic baseline for {duration_minutes:.0f} continuous minutes during scheduled lecture hours. "
+            f"Probable cause: {cause}."
+        ),
+        fields=fields,
+    )
 
-    if url and url.startswith("http"):
-        try:
-            resp = requests.post(url, json=payload, timeout=5)
-            result_status = "SENT"
-            status_code = resp.status_code
-        except Exception as e:
-            result_status = f"FAILED: {e}"
-            status_code = 500
-
+    result_status, status_code = _deliver_alert(url, payload, telegram_text)
     LAST_GHOST_ALERT_DISPATCH[wing_id] = now_ts
 
     record = {
         "timestamp": datetime.now().isoformat(),
         "event_type": "GHOST_LOAD_ALERT",
         "title": f"Ghost Load at {wing_id} ({cause})",
-        "target_url": url if url else "MOCK_CONSOLE",
+        "target_url": url if url else ("TELEGRAM_BOT" if get_telegram_config()["bot_token"] else "MOCK_CONSOLE"),
         "status": result_status,
         "status_code": status_code,
         "payload": payload,
+        "telegram_text": telegram_text,
     }
     _record_dispatch_history(record)
     return record

@@ -154,7 +154,10 @@ export default function ScadaDashboard() {
   const [tier2Armed, setTier2Armed] = useState<boolean>(true);
   const [tier3Armed, setTier3Armed] = useState<boolean>(false);
 
-  // Webhook states
+  // Webhook & Telegram Notification states
+  const [alertChannel, setAlertChannel] = useState<'telegram' | 'slack'>('telegram');
+  const [telegramBotToken, setTelegramBotToken] = useState<string>('');
+  const [telegramChatId, setTelegramChatId] = useState<string>('');
   const [webhookUrl, setWebhookUrl] = useState<string>('');
   const [webhookLogs, setWebhookLogs] = useState<WebhookLog[]>([]);
   const [isDispatching, setIsDispatching] = useState<boolean>(false);
@@ -355,6 +358,8 @@ export default function ScadaDashboard() {
         body: JSON.stringify({
           type,
           webhookUrl,
+          telegramBotToken,
+          telegramChatId,
           peakKw: projectedPeak,
           thresholdKw: contractThreshold,
           overloadKw: projectedOverload,
@@ -379,9 +384,9 @@ export default function ScadaDashboard() {
       setWebhookLogs(prev => [logEntry, ...prev.slice(0, 19)]);
 
       if (data.success) {
-        showToast(`Delivered to Slack Channel! (HTTP ${data.statusCode} in ${latency}ms)`, 'success');
+        showToast(`Delivered to ${data.channel || 'Telegram'}! (HTTP ${data.statusCode} in ${latency}ms)`, 'success');
       } else {
-        showToast(`Webhook delivery failed: ${data.message}`, 'error');
+        showToast(`Alert delivery failed: ${data.message}`, 'error');
       }
     } catch (err: any) {
       showToast(`Dispatch error: ${err.message}`, 'error');
@@ -1252,49 +1257,119 @@ export default function ScadaDashboard() {
                     Automated Slack Incident Dispatcher
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Dispatches structured Block Kit incident cards to campus electrical operators with zero latency
+                    Dispatches structured incident cards to campus electrical operators and wardens with zero latency
                   </p>
                 </div>
 
-                <span className="text-xs px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 font-mono font-semibold border border-emerald-500/30 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                  SLACK BOT ACTIVE
-                </span>
+                {/* Channel Toggle */}
+                <div className="flex items-center bg-slate-900 border border-slate-700/80 rounded-xl p-1 text-xs font-mono">
+                  <button
+                    onClick={() => setAlertChannel('telegram')}
+                    className={`px-3 py-1.5 rounded-lg transition font-bold ${
+                      alertChannel === 'telegram'
+                        ? 'bg-sky-500/20 text-sky-300 border border-sky-500/50 shadow'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    ✈️ Telegram Bot (Preferred)
+                  </button>
+                  <button
+                    onClick={() => setAlertChannel('slack')}
+                    className={`px-3 py-1.5 rounded-lg transition font-bold ${
+                      alertChannel === 'slack'
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50 shadow'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    💬 Slack / Webhook
+                  </button>
+                </div>
               </div>
 
               {/* Endpoint configuration */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-300 block">
-                  Slack Webhook Target URL (Optional override; defaults to server-configured webhook):
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={webhookUrl}
-                    onChange={e => setWebhookUrl(e.target.value)}
-                    placeholder="Leave empty to use pre-configured ALERT_WEBHOOK_URL, or paste custom endpoint..."
-                    className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-amber-400 transition"
-                  />
-                  {webhookUrl && (
-                    <button
-                      onClick={() => setWebhookUrl('')}
-                      className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300 transition"
-                    >
-                      Reset Default
-                    </button>
-                  )}
+              {alertChannel === 'telegram' ? (
+                <div className="p-4 rounded-xl bg-slate-950/80 border border-sky-500/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-sky-300 flex items-center gap-2">
+                      <span>Telegram Bot Notification Channel</span>
+                      <Tooltip
+                        title="Telegram Setup in 30 Seconds"
+                        content="1. Open Telegram and search @BotFather. Send /newbot to get your TELEGRAM_BOT_TOKEN. 2. Send any message to your bot. 3. Search @userinfobot to get your numeric TELEGRAM_CHAT_ID. Paste both below."
+                      />
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/30">
+                      TELEGRAM BOT READY
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-mono text-slate-400">Telegram Bot Token (or via .env):</label>
+                      <input
+                        type="password"
+                        value={telegramBotToken}
+                        onChange={e => setTelegramBotToken(e.target.value)}
+                        placeholder="e.g. 1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-sky-400"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-mono text-slate-400">Telegram Chat ID (User or Group):</label>
+                      <input
+                        type="text"
+                        value={telegramChatId}
+                        onChange={e => setTelegramChatId(e.target.value)}
+                        placeholder="e.g. 123456789 or -1001234567890"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-sky-400"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-mono">
+                    💡 If left blank, automatically reads <code>TELEGRAM_BOT_TOKEN</code> and <code>TELEGRAM_CHAT_ID</code> from <code>.env</code> / <code>.env.local</code>.
+                  </p>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-slate-300 block">
+                    Slack Webhook Target URL (Optional override; defaults to server-configured webhook):
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={webhookUrl}
+                      onChange={e => setWebhookUrl(e.target.value)}
+                      placeholder="Leave empty to use pre-configured ALERT_WEBHOOK_URL, or paste custom endpoint..."
+                      className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-amber-400 transition"
+                    />
+                    {webhookUrl && (
+                      <button
+                        onClick={() => setWebhookUrl('')}
+                        className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300 transition"
+                      >
+                        Reset Default
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <button
                   onClick={() => handleDispatch('PEAK_SHAVING')}
                   disabled={isDispatching}
-                  className="flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-bold text-sm shadow-lg shadow-amber-500/20 hover:brightness-110 active:scale-[0.99] transition disabled:opacity-50"
+                  className={`flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-xl text-slate-950 font-bold text-sm shadow-lg transition disabled:opacity-50 ${
+                    alertChannel === 'telegram'
+                      ? 'bg-gradient-to-r from-sky-400 to-blue-500 text-white shadow-sky-500/20 hover:brightness-110'
+                      : 'bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 shadow-amber-500/20 hover:brightness-110'
+                  }`}
                 >
                   <Send className={`w-4 h-4 ${isDispatching ? 'animate-bounce' : ''}`} />
-                  <span>Dispatch Peak Shaving Directive to Slack</span>
+                  <span>
+                    {alertChannel === 'telegram'
+                      ? 'Dispatch Peak Shaving Directive to Telegram'
+                      : 'Dispatch Peak Shaving Directive to Slack'}
+                  </span>
                 </button>
 
                 <button
@@ -1303,7 +1378,11 @@ export default function ScadaDashboard() {
                   className="flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-500 text-white font-bold text-sm shadow-lg shadow-red-500/20 hover:brightness-110 active:scale-[0.99] transition disabled:opacity-50"
                 >
                   <ShieldAlert className={`w-4 h-4 ${isDispatching ? 'animate-bounce' : ''}`} />
-                  <span>Dispatch SCADA Voltage Sag Alert to Slack</span>
+                  <span>
+                    {alertChannel === 'telegram'
+                      ? 'Dispatch Voltage Sag Alert to Telegram'
+                      : 'Dispatch Voltage Sag Alert to Slack'}
+                  </span>
                 </button>
               </div>
 
