@@ -13,6 +13,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Tuple
+from urllib.parse import unquote
 import pandas as pd
 import duckdb
 try:
@@ -78,26 +79,15 @@ class DeltaLakehouseManager:
             partition_by = ["year", "month", "day"]
 
         t0 = time.time()
-        if HAS_PYARROW:
-            # Read partitioned dataset via PyArrow
-            dataset = ds.dataset(self.parquet_source, format="parquet", partitioning="hive")
-            table = dataset.to_table()
-            if max_records and len(table) > max_records:
-                table = table.slice(0, max_records)
-            total_records = len(table)
-            data_to_write = table
-        else:
-            # Zero-PyArrow fallback using DuckDB
-            duck_df = duckdb.query(f"SELECT * FROM read_parquet('{self.parquet_source}/**/*.parquet', hive_partitioning=true)").to_df()
-            if max_records and len(duck_df) > max_records:
-                duck_df = duck_df.iloc[:max_records]
-            total_records = len(duck_df)
-            data_to_write = duck_df
+        duck_rel = duckdb.query(f"SELECT * FROM read_parquet('{self.parquet_source}/**/*.parquet', hive_partitioning=true)")
+        if max_records:
+            duck_rel = duck_rel.limit(max_records)
+        total_records = len(duck_rel)
 
-        # Atomic write to Delta Lake
+        # Atomic write to Delta Lake using DuckDB native Arrow stream
         write_deltalake(
             self.table_path,
-            data_to_write,
+            duck_rel,
             partition_by=partition_by,
             mode="overwrite",
         )
@@ -122,9 +112,14 @@ class DeltaLakehouseManager:
         Appends a streaming micro-batch of telemetry to the Delta Lake table atomically.
         """
         t0 = time.time()
+        if isinstance(records, pd.DataFrame):
+            data_to_write = duckdb.query("SELECT * FROM records")
+        else:
+            data_to_write = records
+
         write_deltalake(
             self.table_path,
-            records,
+            data_to_write,
             mode="append",
             schema_mode=schema_mode,
         )
@@ -245,21 +240,28 @@ class DeltaLakehouseManager:
 
         con = duckdb.connect()
         try:
-            if HAS_PYARROW:
-                arrow_ds = dt.to_pyarrow_dataset()
-                source_name = "arrow_ds"
-            else:
-                table_df = dt.to_pandas()
-                source_name = "table_df"
+            raw_files = [unquote(f) for f in dt.file_uris()]
+            if not raw_files:
+                return pd.DataFrame(), {
+                    "version_queried": curr_version,
+                    "row_count": 0,
+                    "total_rows": 0,
+                    "columns": [],
+                    "elapsed_ms": 0,
+                    "has_temperature_sensor": False,
+                }
 
-            total_rows = con.execute(f"SELECT COUNT(*) FROM {source_name}").fetchone()[0]
+            file_list_sql = "[" + ", ".join(f"'{f}'" for f in raw_files) + "]"
+            con.execute(f"CREATE VIEW campus_telemetry AS SELECT * FROM read_parquet({file_list_sql}, hive_partitioning=true, union_by_name=true)")
+            total_rows = con.execute("SELECT COUNT(*) FROM campus_telemetry").fetchone()[0]
+
             if sql is None:
                 if limit:
-                    query_str = f"SELECT * FROM {source_name} LIMIT {limit}"
+                    query_str = f"SELECT * FROM campus_telemetry LIMIT {limit}"
                 else:
-                    query_str = f"SELECT * FROM {source_name}"
+                    query_str = "SELECT * FROM campus_telemetry"
             else:
-                query_str = sql.replace("campus_telemetry", source_name)
+                query_str = sql
 
             df = con.execute(query_str).df()
             elapsed_ms = round((time.time() - t0) * 1000, 2)
@@ -292,16 +294,12 @@ class DeltaLakehouseManager:
 
         con = duckdb.connect()
         try:
-            if HAS_PYARROW:
-                ds_a = dt_a.to_pyarrow_dataset()
-                ds_b = dt_b.to_pyarrow_dataset()
-                count_a = con.execute("SELECT COUNT(*) FROM ds_a").fetchone()[0]
-                count_b = con.execute("SELECT COUNT(*) FROM ds_b").fetchone()[0]
-            else:
-                df_a = dt_a.to_pandas()
-                df_b = dt_b.to_pandas()
-                count_a = con.execute("SELECT COUNT(*) FROM df_a").fetchone()[0]
-                count_b = con.execute("SELECT COUNT(*) FROM df_b").fetchone()[0]
+            files_a = [unquote(f) for f in dt_a.file_uris()]
+            files_b = [unquote(f) for f in dt_b.file_uris()]
+            file_list_sql_a = "[" + ", ".join(f"'{f}'" for f in files_a) + "]" if files_a else "[]"
+            file_list_sql_b = "[" + ", ".join(f"'{f}'" for f in files_b) + "]" if files_b else "[]"
+            count_a = con.execute(f"SELECT COUNT(*) FROM read_parquet({file_list_sql_a}, hive_partitioning=true, union_by_name=true)").fetchone()[0] if files_a else 0
+            count_b = con.execute(f"SELECT COUNT(*) FROM read_parquet({file_list_sql_b}, hive_partitioning=true, union_by_name=true)").fetchone()[0] if files_b else 0
         finally:
             con.close()
 

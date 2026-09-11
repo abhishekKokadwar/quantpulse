@@ -71,7 +71,7 @@ class TestDeltaLakehouse(unittest.TestCase):
     def test_05_in_place_compaction_optimize(self):
         """Verify in-place compaction executes and logs an OPTIMIZE transaction."""
         # Append two small micro-batches to guarantee multi-file fragmentation in a partition
-        sample_df = self.mgr.get_table().to_pandas().head(5)
+        sample_df, _ = self.mgr.query_time_travel(limit=5)
         self.mgr.append_batch(sample_df)
         self.mgr.append_batch(sample_df)
 
