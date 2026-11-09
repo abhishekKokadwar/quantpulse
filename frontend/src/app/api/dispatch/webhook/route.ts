@@ -109,9 +109,11 @@ export async function POST(request: Request) {
 
     // Construct Telegram HTML message
     let telegramText = '';
+    const portalUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://gridpulse-portal.vercel.app';
+
     if (type === 'GHOST_LOAD') {
       const {
-        meterId = 'M001',
+        meterId = 'MTR_BH1_WA',
         wing = 'Wing A (Ground & 1st Flr)',
         building = 'Boys Hostel 1',
         observedKw = 26.8,
@@ -130,7 +132,7 @@ export async function POST(request: Request) {
         `📶 <b>Wi-Fi Density:</b> ${wifiClients} connected devices (Strong Vacancy Evidence)`,
         `🔍 <b>NILM Diagnosis:</b> ${nilmCause}`,
         '',
-        '🔗 <a href="http://localhost:3000">Open GridPulse SCADA Console</a>',
+        `🔗 <a href="${portalUrl}">Open GridPulse SCADA Console</a>`,
       ].join('\n');
     } else if (type === 'PEAK_SHAVING') {
       telegramText = [
@@ -140,45 +142,58 @@ export async function POST(request: Request) {
         `📈 <b>Projected Overload:</b> +${overloadKw.toFixed(1)} kW`,
         `💵 <b>Potential Penalty Avoidance:</b> ₹${savings.toLocaleString()} INR`,
         '',
-        '🔗 <a href="http://localhost:3000">Open GridPulse Operations Portal</a>',
+        `🔗 <a href="${portalUrl}">Open GridPulse Operations Portal</a>`,
       ].join('\n');
     } else {
       telegramText = [
         '🚨 <b>GRIDPULSE SCADA FAULT ALERT</b>',
         '⚡ <b>Critical Voltage Sag Detected</b>',
         '',
-        '🔗 <a href="http://localhost:3000">Open GridPulse Operations Portal</a>',
+        `🔗 <a href="${portalUrl}">Open GridPulse Operations Portal</a>`,
       ].join('\n');
     }
 
-    // 1. Deliver via Telegram Bot API
+    // 1. Deliver via Telegram Bot API (supports broadcast to multiple comma-separated chat IDs)
     if (isTelegramDirect || isTelegramUrl) {
       const tgUrl = isTelegramUrl
         ? targetUrl!
         : `https://api.telegram.org/bot${botToken}/sendMessage`;
 
-      const tgPayload: any = {
-        chat_id: chatId,
-        text: telegramText,
-        parse_mode: 'HTML',
-        disable_web_page_preview: false,
-      };
+      const chatIds = isTelegramUrl
+        ? [null]
+        : String(chatId).split(',').map(s => s.trim()).filter(Boolean);
 
-      const tgRes = await fetch(tgUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(tgPayload),
-      });
+      const deliveryResults = await Promise.all(
+        chatIds.map(async (cid) => {
+          const tgPayload: any = {
+            ...(cid ? { chat_id: cid } : {}),
+            text: telegramText,
+            parse_mode: 'HTML',
+            disable_web_page_preview: false,
+          };
 
-      const tgJson = await tgRes.json().catch(() => ({}));
+          const res = await fetch(tgUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(tgPayload),
+          });
+          const json = await res.json().catch(() => ({}));
+          return { ok: res.ok, status: res.status, json, cid };
+        })
+      );
+
+      const anyOk = deliveryResults.some(r => r.ok);
+      const first = deliveryResults[0] || { ok: false, status: 500, json: {} };
+
       return NextResponse.json({
-        success: tgRes.ok,
-        status: tgRes.ok ? 'SENT_TELEGRAM' : `FAILED_TELEGRAM_${tgRes.status}`,
-        statusCode: tgRes.status,
-        message: tgRes.ok
-          ? 'Successfully delivered incident alert to Telegram!'
-          : `Telegram delivery failed: ${tgJson.description || tgRes.statusText}`,
+        success: anyOk,
+        status: anyOk ? 'SENT_TELEGRAM' : `FAILED_TELEGRAM_${first.status}`,
+        statusCode: first.status,
+        message: anyOk
+          ? `Successfully delivered incident alert to Telegram (${deliveryResults.filter(r => r.ok).length}/${deliveryResults.length} recipient${deliveryResults.length > 1 ? 's' : ''})!`
+          : `Telegram delivery failed: ${first.json.description || 'Request failed'}`,
         channel: 'TELEGRAM',
+        recipients: deliveryResults.map(r => ({ id: r.cid, ok: r.ok })),
         telegramText,
         payload: slackPayload,
         timestamp: new Date().toISOString(),

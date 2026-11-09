@@ -34,8 +34,8 @@ def run_lakehouse_compaction(compact_delta: bool = True, compact_raw_parquet: bo
     # 1. Delta Lake In-Place Compaction (OPTIMIZE)
     if compact_delta:
         try:
-            from analysis.delta_lakehouse import DeltaLakehouseManager
-            mgr = DeltaLakehouseManager()
+            from analysis.delta_tick_lakehouse import DeltaTickLakehouseManager
+            mgr = DeltaTickLakehouseManager()
             # If table doesn't exist yet, initialize it
             if not mgr.is_initialized():
                 mgr.initialize_from_parquet()
@@ -46,9 +46,9 @@ def run_lakehouse_compaction(compact_delta: bool = True, compact_raw_parquet: bo
     # 2. Raw Parquet Lake Compaction
     if compact_raw_parquet:
         try:
-            from scripts.compact_lake import run_compaction, DEFAULT_LAKE_PATH
+            from scripts.compact_market_lake import run_compaction_pipeline, DEFAULT_LAKE_PATH
             if os.path.exists(DEFAULT_LAKE_PATH):
-                parquet_result = run_compaction(DEFAULT_LAKE_PATH)
+                parquet_result = {"partitions": run_compaction_pipeline(DEFAULT_LAKE_PATH)}
             else:
                 parquet_result = {"status": "SKIPPED", "message": "Raw lake path does not exist."}
         except Exception as e:

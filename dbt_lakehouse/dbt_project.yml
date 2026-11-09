@@ -17,6 +17,7 @@ clean-targets:
 
 vars:
   raw_telemetry_glob: "data/lake/raw_telemetry/**/*.parquet"
+  raw_trades_glob: "data/lake/raw_ticks/**/*.parquet"
   contract_demand_kw: 800.0
   demand_charge_penalty_rate_inr: 750.0
 

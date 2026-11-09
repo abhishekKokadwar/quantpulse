@@ -1,0 +1,264 @@
+version: 2
+
+seeds:
+  - name: seed_instruments
+    description: "Master multi-asset universe catalog containing 42 financial instruments."
+    columns:
+      - name: symbol
+        description: "Primary instrument ticker symbol."
+        tests:
+          - unique
+          - not_null
+      - name: asset_class
+        description: "Standard asset classification."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['crypto', 'equities', 'etfs', 'forex', 'commodities']
+      - name: ref_price
+        description: "Reference baseline valuation price."
+        tests:
+          - not_null
+      - name: tick_size
+        description: "Minimum discrete price increment."
+        tests:
+          - not_null
+      - name: lot_size
+        description: "Standard trading lot increment."
+        tests:
+          - not_null
+      - name: exchange_primary
+        description: "Primary liquidity venue."
+        tests:
+          - not_null
+
+models:
+  - name: stg_instruments
+    description: "Staging dimension view for 42 financial instruments."
+    columns:
+      - name: symbol
+        description: "Unique ticker symbol."
+        tests:
+          - unique
+          - not_null
+      - name: asset_class
+        description: "Asset category."
+        tests:
+          - not_null
+      - name: ref_price
+        description: "Reference price."
+        tests:
+          - not_null
+
+  - name: bronze_raw_trades
+    description: "Zero-copy Bronze view over partitioned Parquet tick lakehouse."
+    columns:
+      - name: trade_id
+        description: "Raw exchange trade identifier."
+        tests:
+          - not_null
+      - name: symbol
+        description: "Instrument ticker symbol."
+        tests:
+          - not_null
+      - name: timestamp
+        description: "Trade execution epoch timestamp."
+        tests:
+          - not_null
+      - name: price
+        description: "Trade execution price."
+        tests:
+          - not_null
+      - name: quantity
+        description: "Traded quantity/volume."
+        tests:
+          - not_null
+      - name: asset_class
+        description: "Asset class."
+        tests:
+          - not_null
+
+  - name: silver_trades_clean
+    description: "Deduplicated, Lee-Ready aggressor classified, and enriched Silver trade executions."
+    columns:
+      - name: trade_id
+        description: "Trade identifier."
+        tests:
+          - not_null
+      - name: symbol
+        description: "Foreign key to instrument universe."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_instruments')
+              field: symbol
+      - name: timestamp
+        description: "Trade timestamp."
+        tests:
+          - not_null
+      - name: price
+        description: "Cleaned positive execution price."
+        tests:
+          - not_null
+      - name: quantity
+        description: "Cleaned positive trade quantity."
+        tests:
+          - not_null
+      - name: aggressor_side
+        description: "Lee-Ready trade aggressor classification."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['BUY', 'SELL']
+      - name: spread_bps
+        description: "Bid-ask spread in basis points."
+        tests:
+          - not_null
+      - name: notional_usd
+        description: "Dollar turnover for the trade."
+        tests:
+          - not_null
+      - name: asset_class
+        description: "Asset class."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['crypto', 'equities', 'etfs', 'forex', 'commodities']
+
+  - name: silver_ohlcv_1m
+    description: "Standardized 1-minute OHLCV candle bars aggregated across all instruments."
+    columns:
+      - name: bar_id
+        description: "Primary key for 1-minute bar."
+        tests:
+          - unique
+          - not_null
+      - name: symbol
+        description: "Foreign key to instrument universe."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_instruments')
+              field: symbol
+      - name: bar_time
+        description: "Candle bar bucket timestamp."
+        tests:
+          - not_null
+      - name: open_price
+        description: "Bar opening price."
+        tests:
+          - not_null
+      - name: high_price
+        description: "Bar highest price."
+        tests:
+          - not_null
+      - name: low_price
+        description: "Bar lowest price."
+        tests:
+          - not_null
+      - name: close_price
+        description: "Bar closing price."
+        tests:
+          - not_null
+      - name: volume
+        description: "Bar total volume."
+        tests:
+          - not_null
+      - name: trade_count
+        description: "Count of trades in the bar."
+        tests:
+          - not_null
+      - name: vwap
+        description: "Volume-weighted average price."
+        tests:
+          - not_null
+
+  - name: fct_daily_market_liquidity
+    description: "Daily institutional market liquidity factor mart (Kyle's Lambda & Amihud Illiquidity)."
+    columns:
+      - name: liquidity_id
+        description: "Primary key (symbol + date)."
+        tests:
+          - unique
+          - not_null
+      - name: trade_date
+        description: "Calendar trading date."
+        tests:
+          - not_null
+      - name: symbol
+        description: "Foreign key to instrument universe."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_instruments')
+              field: symbol
+      - name: total_volume
+        description: "Total traded volume."
+        tests:
+          - not_null
+      - name: kyle_lambda
+        description: "Kyle's Lambda price impact coefficient."
+        tests:
+          - not_null
+      - name: amihud_illiquidity
+        description: "Amihud Illiquidity Ratio."
+        tests:
+          - not_null
+
+  - name: fct_alpha_factor_performance
+    description: "Rolling institutional alpha strategy metrics (Sharpe, Sortino, Drawdown, Calmar)."
+    columns:
+      - name: performance_id
+        description: "Primary performance identifier."
+        tests:
+          - unique
+          - not_null
+      - name: symbol
+        description: "Foreign key to instrument universe."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_instruments')
+              field: symbol
+      - name: sharpe_ratio
+        description: "Annualized Sharpe Ratio."
+        tests:
+          - not_null
+      - name: sortino_ratio
+        description: "Annualized Sortino Ratio."
+        tests:
+          - not_null
+      - name: max_drawdown
+        description: "Maximum drawdown percentage."
+        tests:
+          - not_null
+
+  - name: dim_cross_sectional_momentum
+    description: "Cross-sectional asset ranking and long-short quintile signals."
+    columns:
+      - name: momentum_id
+        description: "Primary momentum ranking identifier."
+        tests:
+          - unique
+          - not_null
+      - name: symbol
+        description: "Foreign key to instrument universe."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_instruments')
+              field: symbol
+      - name: global_rank
+        description: "Global cross-sectional rank."
+        tests:
+          - not_null
+      - name: momentum_percentile
+        description: "Cross-sectional percentile rank (0.0 to 1.0)."
+        tests:
+          - not_null
+      - name: factor_signal
+        description: "Long-Short portfolio assignment."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['LONG_TOP_QUINTILE', 'SHORT_BOTTOM_QUINTILE', 'NEUTRAL']

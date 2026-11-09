@@ -8,7 +8,7 @@ import argparse
 import os
 import sys
 import time
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 # Add project root to sys.path
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -18,6 +18,7 @@ if PROJECT_ROOT not in sys.path:
 DBT_PROJECT_DIR = os.path.join(PROJECT_ROOT, "dbt_lakehouse")
 DEFAULT_DB_PATH = os.path.join(PROJECT_ROOT, "data", "lakehouse", "gridpulse_medallion.duckdb")
 RAW_LAKE_PATH = os.path.join(PROJECT_ROOT, "data", "lake", "raw_telemetry")
+RAW_TRADES_PATH = os.path.join(PROJECT_ROOT, "data", "lake", "raw_ticks")
 
 
 def ensure_directories():
@@ -35,13 +36,16 @@ def invoke_dbt(command_args: List[str], project_dir: str = DBT_PROJECT_DIR) -> b
     db_path_norm = DEFAULT_DB_PATH.replace("\\", "/")
     os.environ["DUCKDB_DATABASE_PATH"] = db_path_norm
 
-    raw_glob = os.path.join(RAW_LAKE_PATH, "**", "*.parquet").replace("\\", "/")
+    raw_telemetry_glob = os.path.join(RAW_LAKE_PATH, "**", "*.parquet").replace("\\", "/")
+    raw_trades_glob = os.path.join(RAW_TRADES_PATH, "**", "*.parquet").replace("\\", "/")
+
+    vars_json = f'{{"raw_telemetry_glob": "{raw_telemetry_glob}", "raw_trades_glob": "{raw_trades_glob}"}}'
 
     cli_args = [
         *command_args,
         "--project-dir", project_dir,
         "--profiles-dir", project_dir,
-        "--vars", f'{{"raw_telemetry_glob": "{raw_glob}"}}',
+        "--vars", vars_json,
     ]
 
     print(f"\n[DBT RUNNER] Executing: dbt {' '.join(command_args)}")
@@ -68,6 +72,7 @@ def run_pipeline(
     do_run: bool = True,
     do_test: bool = True,
     do_docs: bool = False,
+    select: Optional[str] = None,
     project_dir: str = DBT_PROJECT_DIR,
 ) -> Dict[str, Any]:
     """
@@ -85,21 +90,30 @@ def run_pipeline(
     }
 
     if do_seed:
-        ok = invoke_dbt(["seed"], project_dir)
+        seed_cmd = ["seed"]
+        if select:
+            seed_cmd.extend(["--select", select])
+        ok = invoke_dbt(seed_cmd, project_dir)
         results["seed"] = ok
         if not ok:
             results["success"] = False
             return results
 
     if do_run:
-        ok = invoke_dbt(["run"], project_dir)
+        run_cmd = ["run"]
+        if select:
+            run_cmd.extend(["--select", select])
+        ok = invoke_dbt(run_cmd, project_dir)
         results["run"] = ok
         if not ok:
             results["success"] = False
             return results
 
     if do_test:
-        ok = invoke_dbt(["test"], project_dir)
+        test_cmd = ["test"]
+        if select:
+            test_cmd.extend(["--select", select])
+        ok = invoke_dbt(test_cmd, project_dir)
         results["test"] = ok
         if not ok:
             results["success"] = False
@@ -120,19 +134,21 @@ def main():
     parser.add_argument("--run", action="store_true", help="Execute dbt run")
     parser.add_argument("--test", action="store_true", help="Execute dbt test")
     parser.add_argument("--docs", action="store_true", help="Execute dbt docs generate")
+    parser.add_argument("--select", type=str, default=None, help="Target specific models or tags (e.g. --select bronze_raw_trades+)")
     parser.add_argument("--all", action="store_true", help="Execute seed + run + test")
 
     args = parser.parse_args()
 
     # If no flags passed or --all specified, execute full seed + run + test pipeline
     if args.all or not (args.seed or args.run or args.test or args.docs):
-        res = run_pipeline(do_seed=True, do_run=True, do_test=True, do_docs=args.docs)
+        res = run_pipeline(do_seed=True, do_run=True, do_test=True, do_docs=args.docs, select=args.select)
     else:
         res = run_pipeline(
             do_seed=args.seed,
             do_run=args.run,
             do_test=args.test,
             do_docs=args.docs,
+            select=args.select,
         )
 
     sys.exit(0 if res["success"] else 1)

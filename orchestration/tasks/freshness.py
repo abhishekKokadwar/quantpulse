@@ -48,11 +48,11 @@ def check_sensor_freshness(
         if engine:
             with engine.connect() as conn:
                 from sqlalchemy import text
-                res = conn.execute(text("SELECT MAX(timestamp), COUNT(*) FROM energy_readings")).fetchone()
+                res = conn.execute(text("SELECT MAX(timestamp), COUNT(*) FROM trades_fact")).fetchone()
                 if res and res[0] is not None:
                     latest_timestamp = res[0]
                     total_records = res[1] or 0
-                    source = "postgresql.energy_readings"
+                    source = "postgresql.trades_fact"
     except Exception:
         # DB unreachable or tables not hydrated; fall back to Lakehouse
         pass
@@ -61,12 +61,12 @@ def check_sensor_freshness(
     if latest_timestamp is None and allow_historical_lake:
         try:
             import duckdb
-            delta_path = os.path.join(PROJECT_ROOT, "data", "lakehouse", "delta", "campus_telemetry").replace("\\", "/")
-            raw_lake_glob = os.path.join(PROJECT_ROOT, "data", "lake", "raw_telemetry", "**", "*.parquet").replace("\\", "/")
+            delta_path = os.path.join(PROJECT_ROOT, "data", "lake", "delta", "market_ticks").replace("\\", "/")
+            raw_lake_glob = os.path.join(PROJECT_ROOT, "data", "lake", "raw_ticks", "**", "*.parquet").replace("\\", "/")
 
             con = duckdb.connect()
             # Try Delta Lake first
-            if os.path.exists(os.path.join(PROJECT_ROOT, "data", "lakehouse", "delta", "campus_telemetry", "_delta_log")):
+            if os.path.exists(os.path.join(PROJECT_ROOT, "data", "lake", "delta", "market_ticks", "_delta_log")):
                 try:
                     df = con.execute(f"SELECT MAX(timestamp) as max_ts, COUNT(*) as cnt FROM delta_scan('{delta_path}')").fetchdf()
                     if not df.empty and df["max_ts"].iloc[0] is not None:
@@ -79,7 +79,7 @@ def check_sensor_freshness(
             # Fall back to raw Parquet Lake
             if latest_timestamp is None:
                 import glob
-                matching_files = glob.glob(os.path.join(PROJECT_ROOT, "data", "lake", "raw_telemetry", "**", "*.parquet"), recursive=True)
+                matching_files = glob.glob(os.path.join(PROJECT_ROOT, "data", "lake", "raw_ticks", "**", "*.parquet"), recursive=True)
                 if matching_files:
                     df = con.execute(f"SELECT MAX(timestamp) as max_ts, COUNT(*) as cnt FROM read_parquet('{raw_lake_glob}')").fetchdf()
                     if not df.empty and df["max_ts"].iloc[0] is not None:

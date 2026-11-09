@@ -1,5 +1,5 @@
 """
-GridPulse Cloud Object Storage Lakehouse Manager (Phase 10)
+QuantPulse Cloud Object Storage Lakehouse Manager (Phase 10)
 Integrates S3-compatible object storage (MinIO / AWS S3) for cloud-native
 lakehouse operations, multi-part streaming commits, date-partitioned S3 prefixes,
 lifecycle tiering, and vectorized DuckDB S3 querying.
@@ -23,15 +23,15 @@ if PROJECT_ROOT not in sys.path:
 load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
 DEFAULT_S3_ENDPOINT = os.getenv("S3_ENDPOINT_URL", "http://localhost:9000")
-DEFAULT_S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY", "gridpulse_admin")
-DEFAULT_S3_SECRET_KEY = os.getenv("S3_SECRET_KEY", "gridpulse_password")
-DEFAULT_S3_BUCKET = os.getenv("S3_BUCKET_NAME", "gridpulse-lakehouse")
+DEFAULT_S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY", "quantpulse_admin")
+DEFAULT_S3_SECRET_KEY = os.getenv("S3_SECRET_KEY", "quantpulse_password")
+DEFAULT_S3_BUCKET = os.getenv("S3_BUCKET_NAME", "quantpulse-lakehouse")
 DEFAULT_S3_REGION = os.getenv("S3_REGION", "us-east-1")
 
 
 class S3LakehouseManager:
     """
-    Manages Cloud Object Storage operations for GridPulse over S3 API.
+    Manages Cloud Object Storage operations for QuantPulse over S3 API.
     Works identically with local MinIO containers and production AWS S3 / Cloud Lakehouses.
     """
 

@@ -1,1600 +1,581 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Zap,
   Activity,
+  Layers,
   ShieldAlert,
-  Clock,
-  Database,
+  Zap,
+  DollarSign,
+  TrendingUp,
+  TrendingDown,
   RefreshCw,
-  Send,
-  Building2,
-  Cpu,
+  PlusCircle,
   Sliders,
-  BellRing,
-  ExternalLink,
+  Lock,
+  Unlock,
+  Radio,
+  Clock,
+  Compass,
+  History,
+  Flame,
   CheckCircle2,
   AlertTriangle,
-  Flame,
-  Gauge,
-  Layers,
-  ChevronRight,
-  TrendingUp,
-  Radio,
-  Search,
-  Download,
-  Info,
-  Check,
-  HelpCircle,
-  BarChart3,
-  Server,
-  ArrowUpRight,
-  Play,
-  Pause,
-  Sparkles,
-  Wifi,
-  BedDouble,
-  Workflow,
-  BookOpen,
 } from 'lucide-react';
-import Link from 'next/link';
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-} from 'recharts';
-import { Tooltip } from '@/components/Tooltip';
-import { HostelGhostLoadTab } from '@/components/HostelGhostLoadTab';
-import { FeatureExplainerModal } from '@/components/FeatureExplainerModal';
 
-interface StreamRow {
-  id: number;
-  window_start: string;
-  window_end: string;
-  building_id: string;
-  building_name: string;
-  building_type: string;
-  avg_power_kw: number;
-  avg_voltage_v: number;
-  avg_power_factor: number;
-}
+import { DOMLadderCanvas } from '@/components/trading/DOMLadderCanvas';
+import { TradingViewChart } from '@/components/trading/TradingViewChart';
+import { RiskHUD } from '@/components/trading/RiskHUD';
+import { DecisionExplainer } from '@/components/trading/DecisionExplainer';
+import { RiskControlDrawer, RiskConfigState } from '@/components/trading/RiskControlDrawer';
+import { CrisisSimulatorModal } from '@/components/trading/CrisisSimulatorModal';
+import { AdminUnlockModal } from '@/components/trading/AdminUnlockModal';
+import { ManualOrderModal } from '@/components/trading/ManualOrderModal';
+import { ReplayController } from '@/components/trading/ReplayController';
 
-interface TimelinePoint {
-  time: string;
-  timestamp: string;
-  totalPower: number;
-  avgVoltage: number;
-}
+const DEFAULT_RISK_CONFIG: RiskConfigState = {
+  maxSpreadBps: 25.0,
+  minDepthUsd: 5000.0,
+  maxVpinThreshold: 0.85,
+  maxDailyDrawdownPct: 0.03, // 3.0% max drawdown
+  maxNetDeltaUsd: 100000.0,
+  softLossThrottlePct: 0.50,
+};
 
-interface StreamResponse {
-  success: boolean;
-  count: number;
-  latest: {
-    windowEnd: string | null;
-    loadKw: number;
-    voltageV: number;
-    activeBuildings: number;
-  };
-  timeline: TimelinePoint[];
-  rows: StreamRow[];
-  timestamp: string;
-}
+const SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'NVDA', 'AAPL', 'SPY', 'EUR/USD'];
 
-interface KpiResponse {
-  success: boolean;
-  stats: {
-    buildings: number;
-    meters: number;
-    readings: number;
-    alerts: number;
-    aggregates: number;
-    latestReadingTime: string | null;
-  };
-  instant: {
-    instantaneousLoadKw: number;
-    nominalVoltageV: number;
-    powerFactorAvg: number;
-  };
-}
+export default function QuantPulseTerminalPage() {
+  // Master Operating Mode: LIVE (Binance), REPLAY (Historical Tape), or CRISIS (Synthetic Stress Engine)
+  const [feedMode, setFeedMode] = useState<'live' | 'replay' | 'crisis'>('live');
 
-interface WebhookLog {
-  id: string;
-  timestamp: string;
-  type: string;
-  title: string;
-  status: string;
-  statusCode: number;
-  latencyMs: number;
-}
+  // Master Instrument & Scenario State
+  const [selectedSymbol, setSelectedSymbol] = useState('BTC/USDT');
+  const [activeScenario, setActiveScenario] = useState('normal');
 
-export default function ScadaDashboard() {
-  // Navigation: Clear, self-explanatory operational tabs (includes Phase 11 Hostel Waste)
-  const [activeTab, setActiveTab] = useState<'ghostload' | 'stream' | 'dispatch' | 'buildings' | 'table'>('ghostload');
-  const [isExplainerOpen, setIsExplainerOpen] = useState<boolean>(false);
+  // Replay Mode State
+  const [replayTickIndex, setReplayTickIndex] = useState(120);
+  const [isReplayPlaying, setIsReplayPlaying] = useState(false);
+  const [replaySpeed, setReplaySpeed] = useState(5);
 
-  // Refresh Cadence
-  const [refreshInterval, setRefreshInterval] = useState<number>(3000); // 3000ms
-  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [lastSyncTime, setLastSyncTime] = useState<string>('');
-  const [pingLatency, setPingLatency] = useState<number>(45);
+  // Risk Parameters & Portfolio State
+  const [riskConfig, setRiskConfig] = useState<RiskConfigState>(DEFAULT_RISK_CONFIG);
+  const [portfolio, setPortfolio] = useState({
+    totalEquity: 1000000.0,
+    realizedPnl: 0.0,
+    unrealizedPnl: 14280.0,
+    currentDrawdownPct: 0.004,
+    marginMaintenanceRatio: 3.42,
+    netDeltaUsd: 38500.0,
+  });
 
-  // Data states
-  const [streamData, setStreamData] = useState<StreamResponse | null>(null);
-  const [kpiData, setKpiData] = useState<KpiResponse | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [killSwitchActive, setKillSwitchActive] = useState(false);
 
-  // Real-Time High-Frequency Streaming Engine
-  const [isLiveStream, setIsLiveStream] = useState<boolean>(true);
-  const [liveTimeline, setLiveTimeline] = useState<TimelinePoint[]>([]);
-  const [livePowerKw, setLivePowerKw] = useState<number>(621.4);
-  const [liveVoltageV, setLiveVoltageV] = useState<number>(415.2);
-  const [livePowerFactor, setLivePowerFactor] = useState<number>(0.942);
-  const [liveFrequencyHz, setLiveFrequencyHz] = useState<number>(50.02);
-  const [livePacketsTotal, setLivePacketsTotal] = useState<number>(37962);
-  const [buildingLiveJitters, setBuildingLiveJitters] = useState<Record<string, number>>({});
-  const [isSimulatingDb, setIsSimulatingDb] = useState<boolean>(false);
-  const [autoSyncDb, setAutoSyncDb] = useState<boolean>(false);
+  // Market & Decision Telemetry
+  const [marketData, setMarketData] = useState<any>(null);
+  const [decision, setDecision] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [lastTickTime, setLastTickTime] = useState<string>('');
 
-  // Search & Filters
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [timeFilter, setTimeFilter] = useState<'15m' | '30m' | 'all'>('30m');
-  const [showInfoBanner, setShowInfoBanner] = useState<boolean>(true);
+  // Modals & Drawers
+  const [isRiskControlOpen, setIsRiskControlOpen] = useState(false);
+  const [isCrisisModalOpen, setIsCrisisModalOpen] = useState(false);
+  const [isAdminUnlockOpen, setIsAdminUnlockOpen] = useState(false);
+  const [isManualOrderOpen, setIsManualOrderOpen] = useState(false);
 
-  // Demand Response & Peak Shaving states
-  const [contractThreshold, setContractThreshold] = useState<number>(800);
-  const [tier1Armed, setTier1Armed] = useState<boolean>(true);
-  const [tier2Armed, setTier2Armed] = useState<boolean>(true);
-  const [tier3Armed, setTier3Armed] = useState<boolean>(false);
-
-  // Webhook & Telegram Notification states
-  const [alertChannel, setAlertChannel] = useState<'telegram' | 'slack'>('telegram');
-  const [telegramBotToken, setTelegramBotToken] = useState<string>('');
-  const [telegramChatId, setTelegramChatId] = useState<string>('');
-  const [webhookUrl, setWebhookUrl] = useState<string>('');
-  const [webhookLogs, setWebhookLogs] = useState<WebhookLog[]>([]);
-  const [isDispatching, setIsDispatching] = useState<boolean>(false);
-  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
-
-  // Live Clock
-  const [currentTime, setCurrentTime] = useState<string>('');
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date().toLocaleTimeString('en-US', { hour12: false }));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Fetch Telemetry Data from Neon PostgreSQL
-  const fetchData = useCallback(async () => {
-    setIsRefreshing(true);
-    const start = performance.now();
+  // Fetch Market Data & Evaluate Decision Arbiter
+  const fetchMarketAndEvaluate = useCallback(async () => {
     try {
-      const [streamRes, kpiRes] = await Promise.all([
-        fetch('/api/telemetry/stream?limit=120', { cache: 'no-store' }),
-        fetch('/api/telemetry/kpis', { cache: 'no-store' }),
-      ]);
-
-      const streamJson = await streamRes.json();
-      const kpiJson = await kpiRes.json();
-
-      if (streamJson.success) setStreamData(streamJson);
-      if (kpiJson.success) setKpiData(kpiJson);
-
-      const duration = Math.round(performance.now() - start);
-      setPingLatency(duration);
-      setLastSyncTime(new Date().toLocaleTimeString('en-US', { hour12: false }));
-      setErrorMsg(null);
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Network error connecting to telemetry endpoints');
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, []);
-
-  // Polling loop
-  useEffect(() => {
-    fetchData();
-    if (refreshInterval === 0) return;
-    const interval = setInterval(fetchData, refreshInterval);
-    return () => clearInterval(interval);
-  }, [fetchData, refreshInterval]);
-
-  // Seed live timeline buffer when stream data first arrives
-  useEffect(() => {
-    if (!streamData) return;
-    const basePower = streamData.latest?.loadKw || kpiData?.instant?.instantaneousLoadKw || 621.4;
-    const baseVoltage = streamData.latest?.voltageV || kpiData?.instant?.nominalVoltageV || 415.2;
-    const basePf = kpiData?.instant?.powerFactorAvg || 0.942;
-    const baseReadings = kpiData?.stats?.readings || 37962;
-
-    setLivePowerKw(prev => (prev === 621.4 ? basePower : prev));
-    setLiveVoltageV(prev => (prev === 415.2 ? baseVoltage : prev));
-    setLivePowerFactor(prev => (prev === 0.942 ? basePf : prev));
-    setLivePacketsTotal(prev => (prev === 37962 ? baseReadings : prev));
-
-    if (liveTimeline.length === 0) {
-      const initialPoints: TimelinePoint[] = [];
-      const nowMs = Date.now();
-      for (let i = 24; i >= 0; i--) {
-        const ptTime = new Date(nowMs - i * 2000);
-        const noise = (Math.sin(i * 0.5) + Math.cos(i * 0.8)) * 3.5;
-        initialPoints.push({
-          time: ptTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
-          timestamp: ptTime.toISOString(),
-          totalPower: Number((basePower + noise).toFixed(1)),
-          avgVoltage: Number((baseVoltage + Math.sin(i) * 0.4).toFixed(1)),
-        });
-      }
-      setLiveTimeline(initialPoints);
-    }
-  }, [streamData, kpiData, liveTimeline.length]);
-
-  // Real-Time 1.0s High-Frequency Streaming Ticker
-  useEffect(() => {
-    if (!isLiveStream) return;
-
-    const ticker = setInterval(() => {
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-
-      const baseTarget = streamData?.latest?.loadKw || 621.4;
-      let nextPower = livePowerKw;
-      setLivePowerKw(prev => {
-        const pull = (baseTarget - prev) * 0.12;
-        const jitter = (Math.random() - 0.48) * 2.8;
-        nextPower = Number((prev + pull + jitter).toFixed(1));
-        return Math.max(100.0, nextPower);
+      // 1. Fetch live market stream snapshot based on active mode
+      const queryParams = new URLSearchParams({
+        symbol: selectedSymbol,
+        mode: feedMode,
+        scenario: activeScenario,
+        tickIndex: replayTickIndex.toString(),
       });
 
-      const nextVoltage = Number((415.0 + (Math.random() - 0.5) * 1.6).toFixed(1));
-      const nextPf = Number((0.940 + (Math.random() - 0.5) * 0.006).toFixed(3));
-      const nextFreq = Number((50.00 + (Math.random() - 0.5) * 0.04).toFixed(2));
+      const mktRes = await fetch(`/api/quant/market?${queryParams.toString()}`);
+      const mktJson = await mktRes.json();
+      setMarketData(mktJson);
+      setLastTickTime(new Date().toLocaleTimeString());
 
-      setLiveVoltageV(nextVoltage);
-      setLivePowerFactor(nextPf);
-      setLiveFrequencyHz(nextFreq);
-      setLivePacketsTotal(prev => prev + 42);
+      // 2. Query Decision Arbiter with live microstructure telemetry
+      const bidDepth = mktJson.orderBook?.totalBidDepthUsd || 1;
+      const askDepth = mktJson.orderBook?.totalAskDepthUsd || 1;
+      const computedOfi = (bidDepth - askDepth) / (bidDepth + askDepth);
 
-      // Slide timeline window
-      setLiveTimeline(prev => {
-        const newPt: TimelinePoint = {
-          time: timeStr,
-          timestamp: now.toISOString(),
-          totalPower: nextPower,
-          avgVoltage: nextVoltage,
-        };
-        const sliced = prev.length >= 30 ? prev.slice(prev.length - 29) : prev;
-        return [...sliced, newPt];
-      });
-
-      // Update building live jitters
-      if (streamData?.rows) {
-        const jitters: Record<string, number> = {};
-        for (const r of streamData.rows) {
-          jitters[r.building_id] = Number(((Math.random() - 0.5) * 1.4).toFixed(1));
-        }
-        setBuildingLiveJitters(jitters);
-      }
-    }, 1000);
-
-    return () => clearInterval(ticker);
-  }, [isLiveStream, livePowerKw, streamData]);
-
-  // Ingest Live Batch directly into Neon Cloud PostgreSQL
-  const handlePushLiveBatch = async () => {
-    setIsSimulatingDb(true);
-    try {
-      const res = await fetch('/api/telemetry/simulate', { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        showToast(`⚡ ${data.message}`, 'success');
-        await fetchData();
-      } else {
-        showToast(`Simulation error: ${data.error}`, 'error');
-      }
-    } catch (err: any) {
-      showToast(`Simulation error: ${err.message}`, 'error');
-    } finally {
-      setIsSimulatingDb(false);
-    }
-  };
-
-  // Auto-sync effect to push live batches every 10 seconds
-  useEffect(() => {
-    if (!autoSyncDb) return;
-    const interval = setInterval(handlePushLiveBatch, 10000);
-    return () => clearInterval(interval);
-  }, [autoSyncDb]);
-
-  // Dynamic values based on Live Stream vs Database Snapshot
-  const displayedPower = isLiveStream ? livePowerKw : (streamData?.latest?.loadKw || kpiData?.instant?.instantaneousLoadKw || 618.6);
-  const displayedVoltage = isLiveStream ? liveVoltageV : (streamData?.latest?.voltageV || kpiData?.instant?.nominalVoltageV || 415.2);
-  const displayedPf = isLiveStream ? livePowerFactor : (kpiData?.instant?.powerFactorAvg || 0.94);
-  const displayedPackets = isLiveStream ? livePacketsTotal : (kpiData?.stats?.readings || 37962);
-
-  // Derived calculations for Dispatch
-  const currentTotalLoad = displayedPower;
-  const projectedPeak = Math.max(currentTotalLoad * 1.18, 885.5);
-  const projectedOverload = Math.max(0, projectedPeak - contractThreshold);
-  const potentialSavings = projectedOverload > 0 ? Math.round(projectedOverload * 350) : 0;
-
-  // Active Shed calculation based on switches
-  const activeShedTotal = useMemo(() => {
-    let total = 0;
-    if (tier1Armed) total += 45.0;
-    if (tier2Armed) total += 40.5;
-    if (tier3Armed) total += 50.0;
-    return total;
-  }, [tier1Armed, tier2Armed, tier3Armed]);
-
-  // Toast Notification helper
-  const showToast = (text: string, type: 'success' | 'error' | 'info') => {
-    setToastMessage({ text, type });
-    setTimeout(() => setToastMessage(null), 4500);
-  };
-
-  // Dispatch Webhook handler
-  const handleDispatch = async (type: 'PEAK_SHAVING' | 'SCADA_FAULT') => {
-    setIsDispatching(true);
-    const start = performance.now();
-    try {
-      const actions = [
-        { tier: 1, category: 'Soft Shedding', name: 'Facilities & EV Setback', active_shed_kw: 45.0, status: tier1Armed ? 'ARMED' : 'STANDBY' },
-        { tier: 2, category: 'Chiller Cycling', name: 'Academic HVAC Duty Cycling', active_shed_kw: 40.5, status: tier2Armed ? 'ARMED' : 'STANDBY' },
-        { tier: 3, category: 'BESS Injection', name: 'Campus Battery Storage', active_shed_kw: 50.0, status: tier3Armed ? 'ARMED' : 'STANDBY' },
-      ];
-
-      const res = await fetch('/api/dispatch/webhook', {
+      const decRes = await fetch('/api/quant/decision', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type,
-          webhookUrl,
-          telegramBotToken,
-          telegramChatId,
-          peakKw: projectedPeak,
-          thresholdKw: contractThreshold,
-          overloadKw: projectedOverload,
-          savings: potentialSavings,
-          actions,
+          symbol: selectedSymbol,
+          price: mktJson.price,
+          scenario: activeScenario,
+          mode: feedMode,
+          liveTelemetry: {
+            spreadBps: mktJson.spreadBps,
+            microPrice: mktJson.microPrice,
+            ofi: computedOfi,
+            vpin: feedMode === 'live' ? 0.35 : undefined,
+          },
+          config: riskConfig,
+          portfolioState: portfolio,
+          customKillSwitchActive: killSwitchActive,
         }),
       });
+      const decJson = await decRes.json();
+      setDecision(decJson);
 
-      const data = await res.json();
-      const latency = Math.round(performance.now() - start);
-
-      const logEntry: WebhookLog = {
-        id: Math.random().toString(36).substring(7),
-        timestamp: new Date().toLocaleTimeString(),
-        type: type === 'PEAK_SHAVING' ? 'Peak Demand Directive' : 'Voltage Sag Fault Alert',
-        title: type === 'PEAK_SHAVING' ? `Impending Breach (+${projectedOverload.toFixed(1)} kW)` : 'CRITICAL VOLTAGE SAG at M012',
-        status: data.status || 'SENT',
-        statusCode: data.statusCode || 200,
-        latencyMs: latency,
-      };
-
-      setWebhookLogs(prev => [logEntry, ...prev.slice(0, 19)]);
-
-      if (data.success) {
-        showToast(`Delivered to ${data.channel || 'Telegram'}! (HTTP ${data.statusCode} in ${latency}ms)`, 'success');
-      } else {
-        showToast(`Alert delivery failed: ${data.message}`, 'error');
+      // Auto-trip kill switch if decision triggered Tier 3
+      if (decJson.killSwitchActive && !killSwitchActive) {
+        setKillSwitchActive(true);
       }
-    } catch (err: any) {
-      showToast(`Dispatch error: ${err.message}`, 'error');
+    } catch (err) {
+      console.error('Error fetching market or decision telemetry:', err);
     } finally {
-      setIsDispatching(false);
+      setIsLoading(false);
+    }
+  }, [selectedSymbol, feedMode, activeScenario, replayTickIndex, riskConfig, portfolio, killSwitchActive]);
+
+  // Periodic real-time poll (1.5 seconds) for LIVE and CRISIS modes
+  useEffect(() => {
+    fetchMarketAndEvaluate();
+    const interval = setInterval(() => {
+      if (feedMode !== 'replay' || isReplayPlaying) {
+        fetchMarketAndEvaluate();
+      }
+    }, 1500);
+    return () => clearInterval(interval);
+  }, [fetchMarketAndEvaluate, feedMode, isReplayPlaying]);
+
+  // Replay timeline automatic advancement timer
+  useEffect(() => {
+    if (feedMode !== 'replay' || !isReplayPlaying) return;
+
+    const interval = setInterval(() => {
+      setReplayTickIndex((prev) => (prev + replaySpeed >= 1500 ? 0 : prev + replaySpeed));
+    }, 800);
+
+    return () => clearInterval(interval);
+  }, [feedMode, isReplayPlaying, replaySpeed]);
+
+  // Handlers
+  const handleTriggerKillSwitch = () => {
+    setKillSwitchActive(true);
+    if (decision) {
+      setDecision({
+        ...decision,
+        killSwitchActive: true,
+        riskTier: 'TIER_3_KILL_SWITCH',
+        riskState: 'EMERGENCY_HALT',
+        action: 'HOLD',
+        tradePermitted: false,
+        sizeMultiplier: 0.0,
+      });
     }
   };
 
-  // Filtered rows for table & building cards
-  const filteredRows = useMemo(() => {
-    if (!streamData?.rows) return [];
-    let list = streamData.rows;
-    if (selectedCategory !== 'All') {
-      list = list.filter(r => r.building_type === selectedCategory);
+  const handleAdminUnlock = (token: string): boolean => {
+    if (token === 'QUANT_PULSE_SECURE_TOKEN_2026') {
+      setKillSwitchActive(false);
+      setActiveScenario('normal');
+      setPortfolio((prev) => ({
+        ...prev,
+        currentDrawdownPct: 0.005,
+        marginMaintenanceRatio: 2.8,
+      }));
+      return true;
     }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      list = list.filter(
-        r => r.building_name.toLowerCase().includes(q) || r.building_id.toLowerCase().includes(q)
-      );
-    }
-    return list;
-  }, [streamData?.rows, selectedCategory, searchQuery]);
-
-  // Active timeline data (provides smooth points: live stream buffer or database snapshot)
-  const activeTimeline = useMemo(() => {
-    if (isLiveStream) {
-      if (timeFilter === '15m') return liveTimeline.slice(-15);
-      if (timeFilter === '30m') return liveTimeline.slice(-30);
-      return liveTimeline;
-    }
-    if (!streamData?.timeline || streamData.timeline.length === 0) return [];
-    if (timeFilter === '15m') return streamData.timeline.slice(-15);
-    if (timeFilter === '30m') return streamData.timeline.slice(-30);
-    return streamData.timeline;
-  }, [isLiveStream, liveTimeline, streamData?.timeline, timeFilter]);
-
-  // Building power distribution (Top 8 highest consumers)
-  const buildingChartData = useMemo(() => {
-    if (!streamData?.rows) return [];
-    const map = new Map<string, number>();
-    for (const r of streamData.rows) {
-      const current = map.get(r.building_name) || 0;
-      map.set(r.building_name, Math.max(current, r.avg_power_kw));
-    }
-    return Array.from(map.entries())
-      .map(([name, power]) => ({ name, power: Number(power.toFixed(1)) }))
-      .sort((a, b) => b.power - a.power)
-      .slice(0, 8);
-  }, [streamData?.rows]);
-
-  // CSV Export utility
-  const exportCsv = () => {
-    if (!filteredRows || filteredRows.length === 0) return;
-    const headers = ['ID', 'Window Start', 'Window End', 'Building ID', 'Building Name', 'Category', 'Avg Power kW', 'Avg Voltage V', 'Power Factor'];
-    const csvContent = [
-      headers.join(','),
-      ...filteredRows.map(r =>
-        [
-          r.id,
-          `"${r.window_start}"`,
-          `"${r.window_end}"`,
-          `"${r.building_id}"`,
-          `"${r.building_name}"`,
-          `"${r.building_type}"`,
-          r.avg_power_kw,
-          r.avg_voltage_v,
-          r.avg_power_factor,
-        ].join(',')
-      ),
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `gridpulse_telemetry_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast('Exported telemetry records to CSV', 'info');
+    return false;
   };
+
+  const handleExecuteFill = (order: { symbol: string; side: 'BUY' | 'SELL'; quantity: number; price: number }) => {
+    const notional = order.quantity * order.price;
+    const deltaChange = order.side === 'BUY' ? notional : -notional;
+
+    setPortfolio((prev) => ({
+      ...prev,
+      netDeltaUsd: prev.netDeltaUsd + deltaChange,
+      unrealizedPnl: prev.unrealizedPnl + (order.side === 'BUY' ? +250 : -250),
+    }));
+
+    fetchMarketAndEvaluate();
+  };
+
+  if (isLoading || !marketData) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-[#000000] text-[#A3A3A3]">
+        <div className="flex flex-col items-center gap-3">
+          <RefreshCw className="w-6 h-6 text-[#FFFFFF] animate-spin" />
+          <span className="text-xs font-semibold tracking-widest uppercase font-mono text-[#737373]">
+            Initializing QuantPulse Terminal...
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col font-sans selection:bg-white selection:text-black">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 animate-bounce">
-          <div
-            className={`px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 border text-xs font-semibold backdrop-blur-xl ${
-              toastMessage.type === 'success'
-                ? 'bg-[#0A0A0A] text-emerald-400 border-emerald-500/50'
-                : toastMessage.type === 'error'
-                ? 'bg-[#0A0A0A] text-rose-400 border-rose-500/50'
-                : 'bg-[#0A0A0A] text-white border-[#333333]'
-            }`}
-          >
-            {toastMessage.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
-            {toastMessage.type === 'error' && <AlertTriangle className="w-4 h-4 text-rose-400" />}
-            {toastMessage.type === 'info' && <Info className="w-4 h-4 text-white" />}
-            <span>{toastMessage.text}</span>
-          </div>
-        </div>
-      )}
-
-      {/* TOP SCADA CONTROL HEADER */}
-      <header className="border-b border-[#1A1A1A] bg-black/90 backdrop-blur-xl sticky top-0 z-40 px-6 py-3 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center shadow-md">
-            <Zap className="w-5 h-5 text-black fill-current" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-                GridPulse Operations Portal
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-mono border border-emerald-500/30">
-                  SCADA LIVE
-                </span>
-              </h1>
+    <div className="flex flex-col min-h-screen bg-[#000000] text-[#FFFFFF] font-sans selection:bg-[#262626] selection:text-[#FFFFFF]">
+      {/* ========================================================================= */}
+      {/* 1. Global Navigation & Tri-Mode Architecture Status Bar                    */}
+      {/* ========================================================================= */}
+      <header className="sticky top-0 z-40 bg-[#0A0A0A]/95 backdrop-blur-md border-b border-[#1A1A1A] px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-5">
+          {/* Logo & Platform Name */}
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-[#121212] border border-[#1A1A1A]">
+              <Activity className="w-4 h-4 text-[#FFFFFF]" />
             </div>
-            <p className="text-xs text-[#A3A3A3]">
-              Smart Campus Microgrid Telemetry • 22 Buildings • 42 Sub-Meters • Neon Serverless Cloud
-            </p>
+            <div>
+              <div className="text-sm font-extrabold tracking-tight uppercase flex items-center gap-1.5">
+                <span className="text-[#FFFFFF]">Quant</span>
+                <span className="text-[#A3A3A3]">Pulse</span>
+                <span className="text-[10px] font-mono font-medium px-1.5 py-0.2 rounded bg-[#141414] text-[#A3A3A3] border border-[#262626]">
+                  v2.0 PRO
+                </span>
+              </div>
+              <div className="text-[10px] text-[#525252] font-mono flex items-center gap-1">
+                <span>HFT Microstructure Lakehouse</span>
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Live Status Indicators */}
-        <div className="flex items-center gap-2.5 bg-[#0A0A0A] px-3 py-1.5 rounded-xl border border-[#1A1A1A]">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-            <span className="text-xs font-mono font-bold text-emerald-400">NEON CLOUD</span>
-          </div>
-          <div className="h-4 w-px bg-[#1A1A1A]" />
-          <div className="text-xs text-[#A3A3A3] flex items-center gap-1.5 font-mono">
-            <Clock className="w-3.5 h-3.5 text-[#666666]" />
-            <span>{currentTime || '00:00:00'}</span>
-          </div>
-          <div className="h-4 w-px bg-[#1A1A1A]" />
-          <div className="text-xs font-mono text-cyan-400 flex items-center gap-1">
-            <Radio className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-            <span>{liveFrequencyHz.toFixed(2)} Hz</span>
-          </div>
-          <div className="h-4 w-px bg-[#1A1A1A]" />
-          <div className="text-xs font-mono text-[#A3A3A3]">
-            <span className="text-white font-semibold">{pingLatency}ms</span>
-          </div>
-        </div>
+          {/* Tri-Mode Architecture Segmented Switcher */}
+          <div className="flex items-center bg-[#000000] p-1 rounded-xl border border-[#1A1A1A]">
+            {/* Mode 1: LIVE */}
+            <button
+              onClick={() => {
+                setFeedMode('live');
+                setActiveScenario('normal');
+                setIsReplayPlaying(false);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all border ${
+                feedMode === 'live'
+                  ? 'bg-[#1F1F1F] text-[#FFFFFF] border-[#2B2B2B] shadow-sm'
+                  : 'text-[#737373] hover:text-[#FFFFFF] border-transparent hover:bg-[#121212]'
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${feedMode === 'live' ? 'bg-emerald-400 animate-pulse' : 'bg-[#525252]'}`} />
+              <span>LIVE</span>
+              <span className="text-[9px] uppercase px-1 rounded bg-[#141414] text-[#737373] border border-[#1F1F1F]">
+                Binance
+              </span>
+            </button>
 
-        {/* Real-Time Cadence & Direct Push Controls */}
-        <div className="flex items-center gap-2.5">
-          {/* Live Stream Mode Toggle */}
-          <button
-            onClick={() => setIsLiveStream(!isLiveStream)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition border ${
-              isLiveStream
-                ? 'bg-white text-black border-white'
-                : 'bg-[#111111] border-[#222222] text-[#A3A3A3] hover:text-white'
-            }`}
-            title="Toggle between 1-second live sliding stream and database batch snapshot"
-          >
-            <span className={`w-2 h-2 rounded-full ${isLiveStream ? 'bg-black animate-ping' : 'bg-[#666666]'}`} />
-            <span>{isLiveStream ? '1s STREAM: ACTIVE' : 'STREAM: PAUSED'}</span>
-          </button>
+            {/* Mode 2: REPLAY */}
+            <button
+              onClick={() => {
+                setFeedMode('replay');
+                setActiveScenario('normal');
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all border ${
+                feedMode === 'replay'
+                  ? 'bg-[#1F1F1F] text-[#FFFFFF] border-[#2B2B2B] shadow-sm'
+                  : 'text-[#737373] hover:text-[#FFFFFF] border-transparent hover:bg-[#121212]'
+              }`}
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>REPLAY</span>
+              <span className="text-[9px] uppercase px-1 rounded bg-[#141414] text-[#737373] border border-[#1F1F1F]">
+                Tape
+              </span>
+            </button>
 
-          {/* Ingest Live Batch directly into Neon Cloud PostgreSQL */}
-          <button
-            onClick={handlePushLiveBatch}
-            disabled={isSimulatingDb}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#111111] hover:bg-[#1A1A1A] border border-[#222222] text-white text-xs font-bold font-mono transition disabled:opacity-50"
-            title="Generate a real-time reading for all 42 meters and commit directly to Neon PostgreSQL"
-          >
-            <Zap className={`w-3.5 h-3.5 text-amber-400 ${isSimulatingDb ? 'animate-spin' : ''}`} />
-            <span>{isSimulatingDb ? 'Ingesting...' : '⚡ Push to Neon'}</span>
-          </button>
+            {/* Mode 3: CRISIS SIM */}
+            <button
+              onClick={() => {
+                setFeedMode('crisis');
+                setIsCrisisModalOpen(true);
+                setIsReplayPlaying(false);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all border ${
+                feedMode === 'crisis'
+                  ? 'bg-[#1F1F1F] text-[#FFFFFF] border-[#2B2B2B] shadow-sm'
+                  : 'text-[#737373] hover:text-[#FFFFFF] border-transparent hover:bg-[#121212]'
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${feedMode === 'crisis' ? 'bg-amber-400' : 'bg-[#525252]'}`} />
+              <span>CRISIS SIM</span>
+              <span className="text-[9px] uppercase px-1 rounded bg-[#141414] text-[#737373] border border-[#1F1F1F]">
+                Sandbox
+              </span>
+            </button>
+          </div>
 
-          <div className="flex items-center bg-[#111111] border border-[#1A1A1A] rounded-lg p-0.5 text-xs font-medium">
-            <span className="px-2 text-[11px] text-[#666666]">Sync:</span>
-            {[
-              { label: '1s', val: 1000 },
-              { label: '3s', val: 3000 },
-              { label: '5s', val: 5000 },
-              { label: 'Pause', val: 0 },
-            ].map(item => (
+          {/* Instrument Selector Pill */}
+          <div className="hidden md:flex items-center gap-1 bg-[#000000] p-1 rounded-lg border border-[#1A1A1A] overflow-x-auto">
+            {SYMBOLS.map((sym) => (
               <button
-                key={item.label}
-                onClick={() => setRefreshInterval(item.val)}
-                className={`px-2 py-1 rounded-md transition-all ${
-                  refreshInterval === item.val
-                    ? 'bg-white text-black font-bold shadow'
-                    : 'text-[#A3A3A3] hover:text-white'
+                key={sym}
+                onClick={() => setSelectedSymbol(sym)}
+                className={`px-2.5 py-1 rounded text-xs font-mono font-medium transition-all border ${
+                  selectedSymbol === sym
+                    ? 'bg-[#1A1A1A] text-[#FFFFFF] border-[#2B2B2B] shadow-sm'
+                    : 'text-[#737373] hover:text-[#FFFFFF] border-transparent hover:bg-[#121212]'
                 }`}
               >
-                {item.label}
+                {sym}
               </button>
             ))}
           </div>
+        </div>
 
+        {/* Right Status Badges & Quick Action Buttons */}
+        <div className="flex items-center gap-2.5">
+          {/* Active Data Provenance Badge */}
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-[#000000] border border-[#1A1A1A] rounded-lg text-xs font-mono">
+            {feedMode === 'live' && (
+              <span className="text-[#FFFFFF] flex items-center gap-1.5 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span>{marketData?.metadata?.source || 'Binance Stream (Live)'}</span>
+                <span className="text-[#525252]">({marketData?.metadata?.latencyMs || 42}ms)</span>
+              </span>
+            )}
+            {feedMode === 'replay' && (
+              <span className="text-[#FFFFFF] flex items-center gap-1.5 font-medium">
+                <History className="w-3.5 h-3.5 text-[#A3A3A3]" />
+                <span>Historical Replay ({replaySpeed}x)</span>
+                <span className="text-[#525252]">[{replayTickIndex}/1500]</span>
+              </span>
+            )}
+            {feedMode === 'crisis' && (
+              <span className="text-amber-400 flex items-center gap-1.5 font-medium">
+                <Flame className="w-3.5 h-3.5 text-amber-400" />
+                <span>Stress Sandbox: {activeScenario.toUpperCase()}</span>
+              </span>
+            )}
+          </div>
+
+          {/* Manual Order Trigger */}
           <button
-            onClick={fetchData}
-            disabled={isRefreshing}
-            className="p-2 rounded-lg bg-[#111111] border border-[#1A1A1A] text-[#A3A3A3] hover:text-white transition disabled:opacity-50"
-            title="Manual sync with Neon PostgreSQL"
+            onClick={() => setIsManualOrderOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FFFFFF] hover:bg-[#E5E5E5] text-[#000000] font-semibold text-xs rounded-lg transition-all shadow-sm border border-white/20"
           >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-white' : ''}`} />
+            <PlusCircle className="w-3.5 h-3.5" />
+            <span>New Order</span>
           </button>
 
-          <Link
-            href="/howItWorks"
-            className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-lg bg-white text-black hover:bg-neutral-200 transition shadow-sm"
-            title="Open interactive pipeline flow diagram and complete 11-phase architecture blueprint"
-          >
-            <Workflow className="w-3.5 h-3.5" />
-            <span>🧭 Architecture &amp; Pipeline (/howItWorks)</span>
-          </Link>
-
-          <button
-            onClick={() => setIsExplainerOpen(true)}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#111111] border border-[#222222] hover:border-[#333333] text-[#A3A3A3] hover:text-white transition"
-            title="Open searchable explainer guide for all dashboard features"
-          >
-            <BookOpen className="w-3.5 h-3.5 text-white" />
-            <span>💡 Feature Guide</span>
-          </button>
-
-          <a
-            href="https://share.streamlit.io"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-[#111111] border border-[#222222] text-[#A3A3A3] hover:text-white transition"
-          >
-            <span>Analytics Studio</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
+          {/* Last Tick Timestamp */}
+          <div className="text-[11px] font-mono text-[#A3A3A3] flex items-center gap-1 bg-[#000000] px-2.5 py-1.5 rounded border border-[#1A1A1A]">
+            <Clock className="w-3 h-3 text-[#525252]" />
+            <span>{lastTickTime}</span>
+          </div>
         </div>
       </header>
 
-      {/* ERROR NOTICE IF ANY */}
-      {errorMsg && (
-        <div className="mx-6 mt-4 p-3 rounded-xl bg-red-950/40 border border-red-800/60 text-xs text-red-300 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-red-400" />
-            <span>Connection Warning: {errorMsg}</span>
-          </div>
-          <button onClick={fetchData} className="underline hover:text-white font-mono">
-            Retry Connection
-          </button>
-        </div>
-      )}
+      {/* ========================================================================= */}
+      {/* 2. Main Terminal Content Layout                                           */}
+      {/* ========================================================================= */}
+      <main className="flex-1 p-4 flex flex-col gap-4 max-w-[1920px] mx-auto w-full">
+        {/* REPLAY CONTROLLER: Shown exclusively in REPLAY Mode */}
+        {feedMode === 'replay' && (
+          <ReplayController
+            isPlaying={isReplayPlaying}
+            onTogglePlay={() => setIsReplayPlaying(!isReplayPlaying)}
+            tickIndex={replayTickIndex}
+            totalTicks={1500}
+            speed={replaySpeed}
+            onSpeedChange={(spd) => setReplaySpeed(spd)}
+            onSeek={(tick) => setReplayTickIndex(tick)}
+            onStep={(delta) => setReplayTickIndex((prev) => Math.max(0, Math.min(1500, prev + delta)))}
+            onReset={() => {
+              setReplayTickIndex(0);
+              setIsReplayPlaying(false);
+            }}
+          />
+        )}
 
-      {/* OPERATIONAL INSIGHT BANNER (DISMISSIBLE) */}
-      {showInfoBanner && (
-        <div className="mx-6 mt-4 p-4 rounded-2xl bg-gradient-to-r from-amber-950/30 via-slate-900/80 to-cyan-950/30 border border-amber-500/20 text-xs text-slate-300 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0">
-              <Info className="w-4 h-4 text-amber-400" />
+        {/* CRISIS SIMULATION CONTEXT BANNER: Shown in CRISIS Mode */}
+        {feedMode === 'crisis' && (
+          <div className="bg-[#0A0A0A] border border-[#1A1A1A] border-l-2 border-l-amber-500 rounded-xl p-3.5 flex flex-col md:flex-row items-center justify-between gap-3 shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-[#141414] border border-[#262626] text-amber-400">
+                <AlertTriangle className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-[#FFFFFF] flex items-center gap-2">
+                  <span>CRISIS & STRESS TESTING SANDBOX</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#171717] text-amber-400 font-mono border border-[#2B2B2B]">
+                    Active: {activeScenario.toUpperCase()}
+                  </span>
+                </div>
+                <div className="text-[11px] text-[#A3A3A3] mt-0.5">
+                  Simulating extreme microstructure conditions (VPIN surge, liquidity vacuum, flash crashes) to verify that the Decision Arbiter properly enforces vetoes and circuit breakers.
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="font-semibold text-white">
-                Welcome to GridPulse: Autonomous Campus Microgrid & SCADA Command Center
-              </p>
-              <p className="text-slate-400 mt-0.5">
-                Monitoring 42 IoT sub-meters across 22 campus facilities. Use the tabs below to view real-time power telemetry, test AI peak-shaving dispatch, or inspect the facility electrical hierarchy.
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => setShowInfoBanner(false)}
-            className="text-slate-500 hover:text-slate-300 text-xs font-mono shrink-0 px-2 py-1 rounded-md hover:bg-slate-800 transition"
-          >
-            Dismiss ✕
-          </button>
-        </div>
-      )}
 
-      {/* TOP 4 KEY OPERATIONAL METRICS */}
-      <section className="px-6 pt-5 pb-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Total Campus Power Demand */}
-        <div className="glass-panel p-5 rounded-2xl relative overflow-hidden group hover:border-amber-500/50 transition-all">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-amber-500/20 transition-all" />
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <span className={`w-2 h-2 rounded-full ${isLiveStream ? 'bg-amber-400 animate-ping' : 'bg-slate-500'}`} />
-              Total Campus Power Demand
-              <Tooltip
-                title="Total Campus Power Demand (kW)"
-                content="Real-time instantaneous active power aggregated across all 42 smart sub-meters. Computed continuously with sub-second sliding window updates from Apache Spark and Kafka."
-              />
-            </span>
-            <Flame className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold tracking-tight text-white font-mono transition-all duration-300">
-              {displayedPower.toFixed(1)}
-            </span>
-            <span className="text-sm font-semibold text-amber-400">kW</span>
-          </div>
-          <div className="mt-3 flex items-center gap-2 text-xs">
-            <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-300 font-mono font-medium flex items-center gap-1">
-              {isLiveStream ? '● 1.0s High-Freq Stream' : 'DB Batch Snapshot'}
-            </span>
-            <span className="text-slate-500">22 Facilities Online</span>
-          </div>
-        </div>
-
-        {/* Card 2: Active Sub-Meters & Stream */}
-        <div className="glass-panel p-5 rounded-2xl relative overflow-hidden group hover:border-cyan-500/50 transition-all">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-cyan-500/20 transition-all" />
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-              <span>Active Sub-Meters &amp; Stream</span>
-              <Tooltip
-                title="Sub-Meter Fleet Health"
-                content="Tracks the 42 operational IoT sub-meters across Hostels, Departments, Lecture Theatres, and Support Facilities. Verifies telemetry packet delivery and ingestion freshness."
-              />
-            </span>
-            <Cpu className="w-4 h-4 text-cyan-400" />
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold tracking-tight text-white font-mono">
-              {kpiData?.stats?.meters || 42}
-            </span>
-            <span className="text-sm font-semibold text-cyan-400">/ 42 Online</span>
-          </div>
-          <div className="mt-3 flex items-center gap-2 text-xs">
-            <span className="px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-300 font-medium font-mono">
-              ⚡ {displayedPackets.toLocaleString()} frames (+42/s)
-            </span>
-            <span className="text-slate-500">100% Ingestion</span>
-          </div>
-        </div>
-
-        {/* Card 3: Grid Voltage & Power Factor */}
-        <div className="glass-panel p-5 rounded-2xl relative overflow-hidden group hover:border-emerald-500/50 transition-all">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-emerald-500/20 transition-all" />
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-              <span>Grid Voltage &amp; Frequency</span>
-              <Tooltip
-                title="Grid Quality & Diagnostics"
-                content="Nominal 3-phase campus grid parameters. Voltage is maintained within 220V–240V, and frequency is locked to national standard 50.00 Hz to detect brownouts, sags, or harmonics."
-              />
-            </span>
-            <Gauge className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold tracking-tight text-white font-mono transition-all duration-300">
-              {displayedVoltage.toFixed(1)}
-            </span>
-            <span className="text-sm font-semibold text-emerald-400">V</span>
-          </div>
-          <div className="mt-3 flex items-center gap-2 text-xs">
-            <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-300 font-medium font-mono">
-              PF: {displayedPf.toFixed(3)}
-            </span>
-            <span className="text-emerald-400 font-mono font-medium">Freq: {liveFrequencyHz.toFixed(2)} Hz</span>
-          </div>
-        </div>
-
-        {/* Card 4: Demand Dispatch Status */}
-        <div className="glass-panel p-5 rounded-2xl relative overflow-hidden group hover:border-purple-500/50 transition-all">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-purple-500/20 transition-all" />
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-              <span>Automated Dispatch Status</span>
-              <Tooltip
-                title="Demand Response Peak-Shaving"
-                content="Compares forecasted peak load against utility contract ceilings (800 kW). Automatically triggers 3-tier load shedding to eliminate expensive maximum demand penalty charges."
-              />
-            </span>
-            <Activity className="w-4 h-4 text-purple-400" />
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-extrabold tracking-tight text-white font-mono">
-              {projectedOverload > 0 ? 'CURTAILMENT' : 'NOMINAL'}
-            </span>
-            <span className={`text-xs font-semibold ${projectedOverload > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
-              {projectedOverload > 0 ? `+${projectedOverload.toFixed(1)} kW Alert` : 'Within Limits'}
-            </span>
-          </div>
-          <div className="mt-3 flex items-center gap-2 text-xs">
-            <span className="px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-300 font-mono font-medium">
-              Contract: {contractThreshold} kW
-            </span>
-            <span className="text-slate-500">3-Tier Rules Armed</span>
-          </div>
-        </div>
-      </section>
-
-      {/* SELF-EXPLANATORY NAVIGATION TABS */}
-      <section className="px-6 pt-3">
-        <div className="flex items-center gap-2 border-b border-slate-800/80 pb-px overflow-x-auto">
-          {[
-            {
-              id: 'ghostload',
-              label: '🛏️ Hostel Waste & Ghost Load Monitor',
-              desc: 'Phase 11: Non-Intrusive NILM ML for unoccupied rooms',
-              icon: BedDouble,
-            },
-            {
-              id: 'stream',
-              label: '⚡ Real-Time Power Telemetry',
-              desc: 'Live load curves & 60 FPS streaming',
-              icon: Radio,
-            },
-            {
-              id: 'dispatch',
-              label: '🔮 Smart Peak-Shaving & Demand Dispatch',
-              desc: 'AI forecasting & automated Slack alerts',
-              icon: Sliders,
-            },
-            {
-              id: 'buildings',
-              label: '🏢 Campus Power Grid & Sub-Meters',
-              desc: 'Directory of all 22 facilities',
-              icon: Building2,
-            },
-            {
-              id: 'table',
-              label: '🗂️ Telemetry Stream Records & Audit',
-              desc: 'Searchable database records & CSV export',
-              icon: Layers,
-            },
-          ].map(tab => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
+            <div className="flex items-center gap-2 shrink-0">
               <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-3 px-5 py-3 text-sm font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap ${
-                  isActive
-                    ? 'border-amber-400 text-amber-400 bg-amber-500/10'
-                    : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/40'
-                }`}
+                onClick={() => setIsCrisisModalOpen(true)}
+                className="px-3 py-1.5 bg-[#171717] hover:bg-[#262626] text-[#FFFFFF] font-medium text-xs rounded-lg transition-all border border-[#2B2B2B] flex items-center gap-1.5"
               >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-amber-400' : 'text-slate-400'}`} />
-                <div className="text-left">
-                  <div className="text-xs font-bold leading-tight">{tab.label}</div>
-                  <div className="text-[10px] text-slate-500 font-normal leading-tight">{tab.desc}</div>
-                </div>
+                <Flame className="w-3.5 h-3.5 text-amber-400" />
+                <span>Change Scenario</span>
               </button>
-            );
-          })}
+              <button
+                onClick={() => {
+                  setActiveScenario('normal');
+                  setFeedMode('live');
+                }}
+                className="px-2.5 py-1.5 bg-[#121212] hover:bg-[#1C1C1C] text-[#A3A3A3] hover:text-[#FFFFFF] text-xs rounded-lg transition-all font-mono border border-[#1A1A1A]"
+              >
+                Return to Live
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Tier 1 / Risk HUD Banner */}
+        <RiskHUD
+          portfolio={portfolio}
+          riskTier={decision?.riskTier || 'TIER_0_NORMAL'}
+          killSwitchActive={killSwitchActive}
+          onTriggerKillSwitch={handleTriggerKillSwitch}
+          onOpenUnlockModal={() => setIsAdminUnlockOpen(true)}
+          onOpenControlDrawer={() => setIsRiskControlOpen(true)}
+          onOpenCrisisModal={() => setIsCrisisModalOpen(true)}
+        />
+
+        {/* Primary Interactive Trading View: Candlestick Chart + DOM Ladder */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+          {/* Left: TradingView Candlestick Chart with Rolling VWAP & AI Confidence Ribbons (8 cols) */}
+          <div className="lg:col-span-8 flex flex-col h-[520px]">
+            <TradingViewChart
+              candles={marketData.candles || []}
+              forecastRibbon={marketData.forecastRibbon || []}
+              symbol={selectedSymbol}
+            />
+          </div>
+
+          {/* Right: 60 FPS HTML5 Canvas DOM Ladder (4 cols) */}
+          <div className="lg:col-span-4 flex flex-col h-[520px]">
+            <DOMLadderCanvas
+              bids={marketData.orderBook?.bids || []}
+              asks={marketData.orderBook?.asks || []}
+              bestBid={marketData.bestBid || 0}
+              bestAsk={marketData.bestAsk || 0}
+              spreadBps={marketData.spreadBps || 0}
+              microPrice={marketData.microPrice || 0}
+              symbol={selectedSymbol}
+              onPriceSelect={(px) => setIsManualOrderOpen(true)}
+            />
+          </div>
         </div>
-      </section>
 
-      {/* MAIN TAB CONTENT AREA */}
-      <main className="flex-1 px-6 py-6 max-w-[1600px] w-full mx-auto">
-        {/* =================================================================== */}
-        {/* TAB 0: HOSTEL GHOST LOAD & UNOCCUPIED ROOM WASTE MONITOR (PHASE 11) */}
-        {/* =================================================================== */}
-        {activeTab === 'ghostload' && <HostelGhostLoadTab />}
+        {/* Decision Explainability & Transparency Matrix */}
+        {decision && (
+          <DecisionExplainer decision={decision} />
+        )}
 
-        {/* =================================================================== */}
-        {/* TAB 1: REAL-TIME POWER TELEMETRY */}
-        {/* =================================================================== */}
-        {activeTab === 'stream' && (
-          <div className="space-y-6">
-            {/* Live Chart Panel */}
-            <div className="glass-panel p-6 rounded-2xl">
-              <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-                <div>
-                  <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Activity className="w-5 h-5 text-amber-400" />
-                    Live Campus Power Demand Curve (60 FPS Telemetry Stream)
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    Aggregated electricity consumption (kW) across 42 smart sub-meters computed in 5-minute sliding windows
-                  </p>
-                </div>
+        {/* Bottom Recent Executions & Trade Stream Table */}
+        <div className="bg-[#0A0A0A] border border-[#1A1A1A] rounded-xl p-4 shadow-2xl">
+          <div className="flex items-center justify-between pb-3 border-b border-[#1A1A1A]">
+            <div className="flex items-center gap-2">
+              <Radio className="w-3.5 h-3.5 text-[#A3A3A3]" />
+              <h3 className="text-xs font-semibold text-[#FFFFFF] uppercase tracking-wider">
+                {feedMode === 'live' ? 'Live Binance High-Frequency Trade Stream' : feedMode === 'replay' ? 'Historical Replay Execution Stream' : 'Stress Simulator Trade Stream'}
+              </h3>
+            </div>
+            <span className="text-[10px] font-mono text-[#A3A3A3]">
+              Showing last 15 trade fills across book
+            </span>
+          </div>
 
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5 text-xs font-medium">
-                    <span className="px-2 text-[10px] text-slate-500">Window:</span>
-                    {(['15m', '30m', 'all'] as const).map(f => (
-                      <button
-                        key={f}
-                        onClick={() => setTimeFilter(f)}
-                        className={`px-3 py-1 rounded-md uppercase font-mono ${
-                          timeFilter === f ? 'bg-slate-800 text-amber-400 font-bold' : 'text-slate-400 hover:text-white'
+          <div className="overflow-x-auto mt-2">
+            <table className="w-full text-left text-xs font-mono">
+              <thead>
+                <tr className="text-[#A3A3A3] border-b border-[#1A1A1A] text-[10px] uppercase">
+                  <th className="py-2 px-3">Trade ID</th>
+                  <th className="py-2 px-3">Timestamp</th>
+                  <th className="py-2 px-3">Side</th>
+                  <th className="py-2 px-3 text-right">Price</th>
+                  <th className="py-2 px-3 text-right">Size</th>
+                  <th className="py-2 px-3 text-right">Total USD</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#1A1A1A]">
+                {(marketData.recentTrades || []).map((t: any) => {
+                  const totalUsd = t.price * t.size;
+                  return (
+                    <tr key={t.id} className="hover:bg-[#121212] transition-colors">
+                      <td className="py-1.5 px-3 text-[#A3A3A3]">{t.id}</td>
+                      <td className="py-1.5 px-3 text-[#A3A3A3]">{new Date(t.time).toLocaleTimeString()}</td>
+                      <td className="py-1.5 px-3">
+                        <span
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            t.side === 'BUY'
+                              ? 'bg-emerald-950 text-emerald-400'
+                              : 'bg-rose-950 text-rose-400'
+                          }`}
+                        >
+                          {t.side}
+                        </span>
+                      </td>
+                      <td
+                        className={`py-1.5 px-3 text-right font-bold ${
+                          t.side === 'BUY' ? 'text-emerald-400' : 'text-rose-400'
                         }`}
                       >
-                        {f}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Real-Time Live Ticker Status Bar */}
-              <div className="mb-4 px-3.5 py-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <span className={`w-2.5 h-2.5 rounded-full ${isLiveStream ? 'bg-emerald-400 animate-ping' : 'bg-slate-500'}`} />
-                  <span className="font-bold text-white">Stream Feed:</span>
-                  <span className={`font-mono font-semibold ${isLiveStream ? 'text-emerald-400' : 'text-slate-400'}`}>
-                    {isLiveStream ? 'LIVE 1.0s STREAM ACTIVE • High-Frequency Timeline Ticker' : 'STATIC DATABASE SNAPSHOT'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 text-slate-400 font-mono text-[11px]">
-                  <span>Instantaneous: <strong className="text-amber-400 font-bold">{displayedPower.toFixed(1)} kW</strong></span>
-                  <span>•</span>
-                  <span>Grid Freq: <strong className="text-purple-400 font-bold">{liveFrequencyHz.toFixed(2)} Hz</strong></span>
-                  <span>•</span>
-                  <span>Active Buffer: <strong className="text-cyan-400 font-bold">{activeTimeline.length} Sliding Windows</strong></span>
-                </div>
-              </div>
-
-              {/* Chart Explainer Tooltip */}
-              <div className="mb-4 px-3 py-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400 flex items-center gap-2">
-                <Info className="w-4 h-4 text-cyan-400 shrink-0" />
-                <span>
-                  <strong>Operator Guide:</strong> 5-minute sliding windows smooth out transient motor-startup spikes while preserving immediate detection of sustained peak demand breaches.
-                </span>
-              </div>
-
-              {/* Responsive 60 FPS Recharts Area Chart */}
-              <div className="h-[360px] w-full">
-                {activeTimeline.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={activeTimeline} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="powerGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.4} />
-                          <stop offset="95%" stopColor="#F59E0B" stopOpacity={0.0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" vertical={false} />
-                      <XAxis dataKey="time" stroke="#64748B" fontSize={11} tickLine={false} />
-                      <YAxis stroke="#64748B" fontSize={11} tickLine={false} domain={['auto', 'auto']} unit=" kW" />
-                      <RechartsTooltip
-                        contentStyle={{
-                          backgroundColor: '#0F172A',
-                          borderColor: '#334155',
-                          borderRadius: '12px',
-                          color: '#F8FAFC',
-                          boxShadow: '0 10px 25px -5px rgba(0,0,0,0.5)',
-                        }}
-                        itemStyle={{ color: '#F59E0B' }}
-                        formatter={(val: any) => [`${val} kW`, 'Campus Power Demand']}
-                        labelFormatter={(label: any) => `Sliding Window End: ${label}`}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="totalPower"
-                        stroke="#F59E0B"
-                        strokeWidth={3}
-                        fillOpacity={1}
-                        fill="url(#powerGrad)"
-                        isAnimationActive={false}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-500">
-                    <Activity className="w-8 h-8 animate-pulse text-amber-500/50 mb-2" />
-                    <span>Loading real-time telemetry stream from Neon PostgreSQL...</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Sub-Panels: Facility Consumption & Pipeline Architecture */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Category Power Distribution */}
-              <div className="glass-panel p-6 rounded-2xl lg:col-span-2">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-                      <Building2 className="w-4 h-4 text-cyan-400" />
-                      Top Energy-Consuming Facilities
-                    </h3>
-                    <p className="text-xs text-slate-500">Real-time load ranking across campus buildings</p>
-                  </div>
-                  <span className="text-xs font-mono text-cyan-400">Peak kW Ranking</span>
-                </div>
-                <div className="h-[240px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={buildingChartData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" horizontal={false} />
-                      <XAxis type="number" stroke="#64748B" fontSize={10} unit=" kW" />
-                      <YAxis type="category" dataKey="name" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                      <RechartsTooltip
-                        contentStyle={{
-                          backgroundColor: '#0F172A',
-                          borderColor: '#334155',
-                          borderRadius: '8px',
-                        }}
-                        formatter={(val: any) => [`${val} kW`, 'Measured Load']}
-                      />
-                      <Bar dataKey="power" fill="#38BDF8" radius={[0, 6, 6, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Streaming Pipeline Architecture Panel */}
-              <div className="glass-panel p-6 rounded-2xl space-y-4">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-                  <Server className="w-4 h-4 text-amber-400" />
-                  Streaming Pipeline Architecture
-                </h3>
-
-                <div className="space-y-3 font-mono text-xs">
-                  <div className="flex justify-between items-center py-2 border-b border-slate-800">
-                    <span className="text-slate-400">IoT Event Broker</span>
-                    <span className="text-slate-200 font-semibold">Kafka (KRaft Cluster)</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2 border-b border-slate-800">
-                    <span className="text-slate-400">Stream Processing</span>
-                    <span className="text-slate-200 font-semibold">Spark Structured Streaming</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2 border-b border-slate-800">
-                    <span className="text-slate-400">Sliding Window</span>
-                    <span className="text-slate-200 font-semibold">5 mins (slide: 1 min)</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2 border-b border-slate-800">
-                    <span className="text-slate-400">Relational Hot Path</span>
-                    <span className="text-emerald-400 font-semibold">Neon PostgreSQL (Pooled)</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2">
-                    <span className="text-slate-400">Cold Path Analytics</span>
-                    <span className="text-cyan-400 font-semibold">DuckDB & Snappy Parquet</span>
-                  </div>
-                </div>
-
-                <div className="pt-2">
-                  <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-slate-400 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                    <span>Pipeline status: Micro-batching operational.</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* =================================================================== */}
-        {/* TAB 2: SMART PEAK-SHAVING & DEMAND DISPATCH */}
-        {/* =================================================================== */}
-        {activeTab === 'dispatch' && (
-          <div className="space-y-6">
-            {/* Explainer Box */}
-            <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-500/30 flex items-start gap-3 text-xs text-slate-300">
-              <HelpCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-bold text-amber-300">How Automated Demand Response & Peak Shaving Works:</p>
-                <p className="text-slate-400 mt-1">
-                  Utilities charge steep monthly demand penalties if campus load breaches the contract threshold ({contractThreshold} kW).
-                  The predictive engine continuously calculates projected overload and automatically engages progressive load-shedding directives (Tier 1 setbacks, Tier 2 HVAC cycling, and Tier 3 battery injection) while notifying operators through Slack.
-                </p>
-              </div>
-            </div>
-
-            {/* Interactive Threshold Slider Panel */}
-            <div className="glass-panel-glow p-6 rounded-2xl">
-              <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-                <div>
-                  <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-amber-400" />
-                    Interactive Contract Demand Ceiling Optimizer
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    Adjust the contract demand slider to evaluate real-time overload risk and tariff penalty savings
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-slate-400 font-medium">Contract Limit:</span>
-                  <span className="text-2xl font-extrabold font-mono text-amber-400">
-                    {contractThreshold} kW
-                  </span>
-                </div>
-              </div>
-
-              {/* Slider */}
-              <div className="my-6">
-                <input
-                  type="range"
-                  min="550"
-                  max="1100"
-                  step="25"
-                  value={contractThreshold}
-                  onChange={e => setContractThreshold(Number(e.target.value))}
-                  className="w-full h-2.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400"
-                />
-                <div className="flex justify-between text-xs font-mono text-slate-500 mt-2">
-                  <span>550 kW (Aggressive Curtailment)</span>
-                  <span>800 kW (Standard Contract Capacity)</span>
-                  <span>1,100 kW (High Risk Margin)</span>
-                </div>
-              </div>
-
-              {/* Impact readout */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-                <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800">
-                  <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
-                    Projected 24h Peak Demand
-                  </span>
-                  <div className="mt-1 text-2xl font-extrabold font-mono text-white">
-                    {projectedPeak.toFixed(1)} kW
-                  </div>
-                  <span className="text-xs text-slate-500 mt-1 block">95% AI Confidence Interval</span>
-                </div>
-
-                <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800">
-                  <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
-                    Projected Overload
-                  </span>
-                  <div
-                    className={`mt-1 text-2xl font-extrabold font-mono ${
-                      projectedOverload > 0 ? 'text-amber-400' : 'text-emerald-400'
-                    }`}
-                  >
-                    {projectedOverload > 0 ? `+${projectedOverload.toFixed(1)} kW` : '0.0 kW (SAFE)'}
-                  </div>
-                  <span className="text-xs text-slate-500 mt-1 block">
-                    {projectedOverload > 0 ? 'Exceeds contract capacity limit' : 'Operating within safe limits'}
-                  </span>
-                </div>
-
-                <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800">
-                  <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
-                    Potential Tariff Penalty Savings
-                  </span>
-                  <div className="mt-1 text-2xl font-extrabold font-mono text-emerald-400">
-                    INR {potentialSavings.toLocaleString()}
-                  </div>
-                  <span className="text-xs text-slate-500 mt-1 block">Avoided demand-charge surcharge</span>
-                </div>
-              </div>
-            </div>
-
-            {/* 3-Tier Automated Dispatch Directives */}
-            <div className="glass-panel p-6 rounded-2xl">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-base font-bold text-white flex items-center gap-2">
-                    <ShieldAlert className="w-5 h-5 text-amber-400" />
-                    3-Tier Automated Load-Shedding Countermeasures
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Toggle individual tiers to simulate automated demand response actuation
-                  </p>
-                </div>
-
-                <div className="text-right">
-                  <span className="text-xs text-slate-400 block">Total Active Countermeasures</span>
-                  <span className="text-lg font-bold font-mono text-emerald-400">
-                    {activeShedTotal.toFixed(1)} kW shed
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Tier 1 */}
-                <div
-                  className={`p-4 rounded-xl border transition-all ${
-                    tier1Armed
-                      ? 'bg-amber-950/20 border-amber-500/40 text-slate-200'
-                      : 'bg-slate-900/40 border-slate-800 text-slate-500'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-amber-400">
-                      Tier 1 • Soft Shedding
-                    </span>
-                    <button
-                      onClick={() => setTier1Armed(!tier1Armed)}
-                      className={`w-11 h-6 rounded-full transition-colors relative ${
-                        tier1Armed ? 'bg-amber-500' : 'bg-slate-700'
-                      }`}
-                    >
-                      <span
-                        className={`block w-4 h-4 rounded-full bg-white transition-transform ${
-                          tier1Armed ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                  <h4 className="font-bold text-sm text-white mt-2">Non-Critical Facilities & EV Setback</h4>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Dimming streetlights, setback EV charging stations, pump throttling.
-                  </p>
-                  <div className="mt-3 flex justify-between items-center text-xs font-mono">
-                    <span className="text-slate-400">Shed Capacity:</span>
-                    <span className="font-bold text-amber-400">45.0 kW</span>
-                  </div>
-                </div>
-
-                {/* Tier 2 */}
-                <div
-                  className={`p-4 rounded-xl border transition-all ${
-                    tier2Armed
-                      ? 'bg-amber-950/20 border-amber-500/40 text-slate-200'
-                      : 'bg-slate-900/40 border-slate-800 text-slate-500'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-amber-400">
-                      Tier 2 • Duty Cycling
-                    </span>
-                    <button
-                      onClick={() => setTier2Armed(!tier2Armed)}
-                      className={`w-11 h-6 rounded-full transition-colors relative ${
-                        tier2Armed ? 'bg-amber-500' : 'bg-slate-700'
-                      }`}
-                    >
-                      <span
-                        className={`block w-4 h-4 rounded-full bg-white transition-transform ${
-                          tier2Armed ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                  <h4 className="font-bold text-sm text-white mt-2">Academic & Lecture Hall HVAC Cycling</h4>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Duty cycling large chillers and air handlers across LT1, LT2, and Computer Center.
-                  </p>
-                  <div className="mt-3 flex justify-between items-center text-xs font-mono">
-                    <span className="text-slate-400">Shed Capacity:</span>
-                    <span className="font-bold text-amber-400">40.5 kW</span>
-                  </div>
-                </div>
-
-                {/* Tier 3 */}
-                <div
-                  className={`p-4 rounded-xl border transition-all ${
-                    tier3Armed
-                      ? 'bg-red-950/20 border-red-500/40 text-slate-200'
-                      : 'bg-slate-900/40 border-slate-800 text-slate-500'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-red-400">
-                      Tier 3 • Battery Injection
-                    </span>
-                    <button
-                      onClick={() => setTier3Armed(!tier3Armed)}
-                      className={`w-11 h-6 rounded-full transition-colors relative ${
-                        tier3Armed ? 'bg-red-500' : 'bg-slate-700'
-                      }`}
-                    >
-                      <span
-                        className={`block w-4 h-4 rounded-full bg-white transition-transform ${
-                          tier3Armed ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                  <h4 className="font-bold text-sm text-white mt-2">BESS Sub-Station Battery Injection</h4>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Discharge 500 kWh stationary LiFePO4 battery array to cap grid import peak.
-                  </p>
-                  <div className="mt-3 flex justify-between items-center text-xs font-mono">
-                    <span className="text-slate-400">Shed Capacity:</span>
-                    <span className="font-bold text-red-400">50.0 kW</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Slack Incident Webhook Operations Console */}
-            <div className="glass-panel p-6 rounded-2xl space-y-6">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-base font-bold text-white flex items-center gap-2">
-                    <BellRing className="w-5 h-5 text-amber-400" />
-                    Automated Slack Incident Dispatcher
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Dispatches structured incident cards to campus electrical operators and wardens with zero latency
-                  </p>
-                </div>
-
-                {/* Channel Toggle */}
-                <div className="flex items-center bg-slate-900 border border-slate-700/80 rounded-xl p-1 text-xs font-mono">
-                  <button
-                    onClick={() => setAlertChannel('telegram')}
-                    className={`px-3 py-1.5 rounded-lg transition font-bold ${
-                      alertChannel === 'telegram'
-                        ? 'bg-white text-black font-semibold'
-                        : 'text-[#A3A3A3] hover:text-white'
-                    }`}
-                  >
-                    ✈️ Telegram Bot (Preferred)
-                  </button>
-                  <button
-                    onClick={() => setAlertChannel('slack')}
-                    className={`px-3 py-1.5 rounded-lg transition font-semibold ${
-                      alertChannel === 'slack'
-                        ? 'bg-white text-black font-semibold'
-                        : 'text-[#A3A3A3] hover:text-white'
-                    }`}
-                  >
-                    💬 Slack / Webhook
-                  </button>
-                </div>
-              </div>
-
-              {/* Endpoint security status */}
-              {alertChannel === 'telegram' ? (
-                <div className="p-4 rounded-xl bg-[#0A0A0A] border border-[#1A1A1A] space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-white flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                      <span>Telegram Bot Channel Active</span>
-                      <Tooltip
-                        title="Server-Side Encrypted Secrets"
-                        content="Credentials (TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID) are encrypted and loaded directly on the server environment. Public users and browsers cannot view or tamper with your bot keys."
-                      />
-                    </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      🔒 SERVER-SIDE ENCRYPTED
-                    </span>
-                  </div>
-                  <p className="text-xs text-[#A3A3A3] leading-relaxed">
-                    Direct automated incident dispatch is active. When you click dispatch, GridPulse securely delivers formatted HTML alert cards directly to your registered Telegram group or personal chat without exposing tokens.
-                  </p>
-                </div>
-              ) : (
-                <div className="p-4 rounded-xl bg-[#0A0A0A] border border-[#1A1A1A] space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-white flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                      <span>Slack Webhook Channel Active</span>
-                      <Tooltip
-                        title="Slack Alerting"
-                        content="Delivers JSON incident attachments to the designated Slack channel via server-side ALERT_WEBHOOK_URL."
-                      />
-                    </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/10 text-white border border-white/20">
-                      🔒 SERVER-SIDE WEBHOOK
-                    </span>
-                  </div>
-                  <p className="text-xs text-[#A3A3A3] leading-relaxed">
-                    Webhook payload cards are routed through the backend gateway directly to the campus operations Slack channel.
-                  </p>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <button
-                  onClick={() => handleDispatch('PEAK_SHAVING')}
-                  disabled={isDispatching}
-                  className="flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-xl bg-white hover:bg-neutral-200 text-black font-semibold text-sm shadow-sm active:scale-[0.99] transition disabled:opacity-50"
-                >
-                  <Send className={`w-4 h-4 ${isDispatching ? 'animate-bounce' : ''}`} />
-                  <span>
-                    {alertChannel === 'telegram'
-                      ? 'Dispatch Peak Shaving Directive (Telegram)'
-                      : 'Dispatch Peak Shaving Directive (Slack)'}
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => handleDispatch('SCADA_FAULT')}
-                  disabled={isDispatching}
-                  className="flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-xl bg-[#111111] hover:bg-[#1A1A1A] text-white border border-rose-500/40 font-semibold text-sm shadow-sm active:scale-[0.99] transition disabled:opacity-50"
-                >
-                  <ShieldAlert className={`w-4 h-4 text-rose-400 ${isDispatching ? 'animate-bounce' : ''}`} />
-                  <span>
-                    {alertChannel === 'telegram'
-                      ? 'Dispatch Voltage Sag Alert (Telegram)'
-                      : 'Dispatch Voltage Sag Alert (Slack)'}
-                  </span>
-                </button>
-              </div>
-
-              {/* Webhook audit log table */}
-              <div className="pt-2">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
-                  Live Dispatch Audit Trail (Real-Time Sub-50ms Log)
-                </h4>
-                {webhookLogs.length > 0 ? (
-                  <div className="overflow-x-auto rounded-xl border border-slate-800">
-                    <table className="w-full text-left text-xs font-mono">
-                      <thead className="bg-slate-900/90 text-slate-400 border-b border-slate-800">
-                        <tr>
-                          <th className="py-2.5 px-4">Timestamp</th>
-                          <th className="py-2.5 px-4">Event Type</th>
-                          <th className="py-2.5 px-4">Incident Details</th>
-                          <th className="py-2.5 px-4">Status</th>
-                          <th className="py-2.5 px-4">Latency</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60 bg-slate-950/40">
-                        {webhookLogs.map(log => (
-                          <tr key={log.id} className="hover:bg-slate-900/40 transition">
-                            <td className="py-2.5 px-4 text-slate-400">{log.timestamp}</td>
-                            <td className="py-2.5 px-4 font-semibold text-amber-400">{log.type}</td>
-                            <td className="py-2.5 px-4 text-slate-300">{log.title}</td>
-                            <td className="py-2.5 px-4">
-                              <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/30">
-                                {log.status} ({log.statusCode})
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-4 text-slate-400">{log.latencyMs}ms</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="p-6 rounded-xl bg-slate-900/40 border border-slate-800/80 text-center text-xs text-slate-500">
-                    No webhooks dispatched in this session yet. Click either dispatch button above to trigger an immediate Slack alert.
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* =================================================================== */}
-        {/* TAB 3: CAMPUS POWER GRID & SUB-METERS */}
-        {/* =================================================================== */}
-        {activeTab === 'buildings' && (
-          <div className="space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Building2 className="w-5 h-5 text-cyan-400" />
-                  Campus Facility Power Hierarchy
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Comprehensive directory of all 22 campus buildings and their active sub-meters
-                </p>
-              </div>
-
-              {/* Search Bar & Category Filter */}
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="Search facility name..."
-                    className="bg-slate-900 border border-slate-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-400"
-                  />
-                </div>
-
-                <div className="flex items-center gap-1.5 bg-slate-900/80 p-1 rounded-lg border border-slate-800">
-                  {['All', 'Hostels', 'Departments', 'Lecture Theatres', 'Facilities'].map(cat => (
-                    <button
-                      key={cat}
-                      onClick={() => setSelectedCategory(cat)}
-                      className={`px-3 py-1 rounded-md text-xs font-semibold transition ${
-                        selectedCategory === cat
-                          ? 'bg-cyan-500 text-slate-950 shadow'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Building Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {filteredRows.map(b => {
-                const liveBuildingPower = Number(
-                  (b.avg_power_kw + (isLiveStream ? (buildingLiveJitters[b.building_id] || 0) : 0)).toFixed(1)
-                );
-                return (
-                  <div
-                    key={`${b.building_id}-${b.id}`}
-                    className="glass-panel p-4 rounded-xl border border-slate-800 hover:border-cyan-500/40 transition group"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-bold text-cyan-400 font-mono">{b.building_id}</span>
-                        {isLiveStream && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                        )}
-                      </div>
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400">
-                        {b.building_type}
-                      </span>
-                    </div>
-                    <h4 className="font-bold text-sm text-white mt-1.5 group-hover:text-cyan-300 transition">
-                      {b.building_name}
-                    </h4>
-                    <div className="mt-3 flex justify-between items-baseline font-mono">
-                      <span className="text-xs text-slate-400">Measured Load:</span>
-                      <span className="text-base font-extrabold text-amber-400 transition-all duration-300">
-                        {liveBuildingPower} kW
-                      </span>
-                    </div>
-                    <div className="mt-1 flex justify-between items-baseline font-mono text-xs text-slate-500">
-                      <span>Bus Voltage:</span>
-                      <span className="text-emerald-400 font-semibold">{b.avg_voltage_v.toFixed(1)} V</span>
-                    </div>
-                    <div className="mt-1 flex justify-between items-baseline font-mono text-xs text-slate-500">
-                      <span>Power Factor:</span>
-                      <span className="text-slate-300">{b.avg_power_factor.toFixed(2)}</span>
-                    </div>
-
-                    {/* Visual Load Bar */}
-                    <div className="mt-3 w-full bg-slate-800/80 h-1.5 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-cyan-500 to-amber-400 rounded-full transition-all duration-500"
-                        style={{ width: `${Math.min(100, (liveBuildingPower / 55) * 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* =================================================================== */}
-        {/* TAB 4: TELEMETRY STREAM RECORDS & AUDIT */}
-        {/* =================================================================== */}
-        {activeTab === 'table' && (
-          <div className="space-y-4">
-            <div className="flex flex-wrap justify-between items-center gap-4">
-              <div>
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Layers className="w-5 h-5 text-amber-400" />
-                  Live Relational Telemetry Audit Table
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Real-time sliding window aggregates synchronized directly from Neon Cloud PostgreSQL
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={exportCsv}
-                  className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-amber-500/50 text-slate-200 hover:text-white transition"
-                >
-                  <Download className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Export CSV</span>
-                </button>
-
-                <div className="text-xs font-mono text-slate-400">
-                  Showing <span className="text-amber-400 font-bold">{filteredRows.length}</span> active records
-                </div>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto rounded-2xl border border-slate-800 glass-panel">
-              <table className="w-full text-left text-xs font-mono">
-                <thead className="bg-slate-900/90 text-slate-400 border-b border-slate-800">
-                  <tr>
-                    <th className="py-3 px-4">Record ID</th>
-                    <th className="py-3 px-4">Window Start</th>
-                    <th className="py-3 px-4">Window End</th>
-                    <th className="py-3 px-4">Facility ID</th>
-                    <th className="py-3 px-4">Facility Name</th>
-                    <th className="py-3 px-4">Zone</th>
-                    <th className="py-3 px-4 text-right">Avg Power (kW)</th>
-                    <th className="py-3 px-4 text-right">Avg Voltage (V)</th>
-                    <th className="py-3 px-4 text-right">Power Factor</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60 bg-slate-950/40">
-                  {filteredRows.slice(0, 50).map(r => (
-                    <tr key={r.id} className="hover:bg-slate-900/40 transition">
-                      <td className="py-2.5 px-4 text-slate-500">#{r.id}</td>
-                      <td className="py-2.5 px-4 text-slate-400">
-                        {new Date(r.window_start).toLocaleTimeString([], { hour12: false })}
+                        ${t.price.toFixed(2)}
                       </td>
-                      <td className="py-2.5 px-4 text-slate-300 font-semibold">
-                        {new Date(r.window_end).toLocaleTimeString([], { hour12: false })}
-                      </td>
-                      <td className="py-2.5 px-4 text-cyan-400 font-bold">{r.building_id}</td>
-                      <td className="py-2.5 px-4 text-slate-200">{r.building_name}</td>
-                      <td className="py-2.5 px-4 text-slate-400">{r.building_type}</td>
-                      <td className="py-2.5 px-4 text-right text-amber-400 font-bold">
-                        {r.avg_power_kw.toFixed(2)}
-                      </td>
-                      <td className="py-2.5 px-4 text-right text-emerald-400">
-                        {r.avg_voltage_v.toFixed(1)}
-                      </td>
-                      <td className="py-2.5 px-4 text-right text-slate-400">
-                        {r.avg_power_factor.toFixed(3)}
+                      <td className="py-1.5 px-3 text-right text-[#FFFFFF]">{t.size.toFixed(4)}</td>
+                      <td className="py-1.5 px-3 text-right text-[#A3A3A3]">
+                        ${totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        )}
+        </div>
       </main>
 
-      {/* OPERATIONAL FOOTER */}
-      <footer className="border-t border-slate-800/80 bg-slate-950/70 px-6 py-4 flex flex-wrap items-center justify-between gap-4 text-xs text-slate-500">
-        <div className="flex items-center gap-3">
-          <span className="text-amber-400 font-bold">GridPulse Operations Portal</span>
-          <span>•</span>
-          <span>Next.js 15 App Router</span>
-          <span>•</span>
-          <span>Neon Cloud PostgreSQL (High-Throughput Pooler)</span>
-        </div>
-        <div className="flex items-center gap-4 font-mono">
-          <span>Last Sync: {lastSyncTime || 'Awaiting tick'}</span>
-          <span>Refresh Cadence: {refreshInterval > 0 ? `${refreshInterval / 1000}s` : 'Paused'}</span>
-        </div>
-      </footer>
+      {/* ========================================================================= */}
+      {/* 3. Interactive Modals & Drawers                                            */}
+      {/* ========================================================================= */}
+      <RiskControlDrawer
+        isOpen={isRiskControlOpen}
+        onClose={() => setIsRiskControlOpen(false)}
+        config={riskConfig}
+        onChangeConfig={(newCfg) => {
+          setRiskConfig(newCfg);
+          fetchMarketAndEvaluate();
+        }}
+        onResetDefaults={() => {
+          setRiskConfig(DEFAULT_RISK_CONFIG);
+          fetchMarketAndEvaluate();
+        }}
+      />
 
-      {/* SEARCHABLE FEATURE EXPLAINER MODAL */}
-      <FeatureExplainerModal isOpen={isExplainerOpen} onClose={() => setIsExplainerOpen(false)} />
+      <CrisisSimulatorModal
+        isOpen={isCrisisModalOpen}
+        onClose={() => setIsCrisisModalOpen(false)}
+        activeScenario={activeScenario}
+        onSelectScenario={(sc) => {
+          setActiveScenario(sc);
+          if (sc !== 'normal') {
+            setFeedMode('crisis');
+          }
+          fetchMarketAndEvaluate();
+        }}
+      />
+
+      <AdminUnlockModal
+        isOpen={isAdminUnlockOpen}
+        onClose={() => setIsAdminUnlockOpen(false)}
+        onUnlock={handleAdminUnlock}
+      />
+
+      <ManualOrderModal
+        isOpen={isManualOrderOpen}
+        onClose={() => setIsManualOrderOpen(false)}
+        symbol={selectedSymbol}
+        currentPrice={marketData?.price || 64000.0}
+        onExecuteFill={handleExecuteFill}
+        isKillSwitchActive={killSwitchActive}
+      />
     </div>
   );
 }

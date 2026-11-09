@@ -1,7 +1,7 @@
 """
 GridPulse Orchestration Task: Automated ML Model Retraining
-Periodically re-trains the 24-hour recursive load forecaster using chronological
-splits and validates regression KPIs (MAE, RMSE, MAPE) before model promotion.
+Periodically re-trains the multi-horizon alpha forecaster using chronological
+splits and validates regression KPIs before model promotion.
 """
 
 import os
@@ -16,9 +16,8 @@ if PROJECT_ROOT not in sys.path:
 
 
 def retrain_forecaster_model(
-    max_acceptable_mae: float = 120.0,
-    max_acceptable_rmse: float = 160.0,
-    max_acceptable_mape: float = 25.0,
+    min_acceptable_hit_rate: float = 0.51,
+    min_acceptable_ic: float = 0.02,
 ) -> Dict[str, Any]:
     """
     Executes automated model retraining, evaluates candidate performance,
@@ -28,21 +27,22 @@ def retrain_forecaster_model(
         Dict containing model name, metrics, promotion status, and duration.
     """
     start_time = time.time()
-    from analysis.forecaster import LoadForecaster, DEFAULT_MODEL_PATH
+    from analysis.alpha_forecaster import train_alpha_forecaster_pipeline, DEFAULT_MODEL_DIR
 
-    forecaster = LoadForecaster(model_path=DEFAULT_MODEL_PATH)
     try:
-        evaluation = forecaster.train_and_evaluate(train_ratio=0.8)
-        metrics = evaluation.get("metrics", {})
-        mae = metrics.get("MAE", 999.0)
-        rmse = metrics.get("RMSE", 999.0)
-        mape = metrics.get("MAPE", 999.0)
+        model, metrics = train_alpha_forecaster_pipeline(symbol="BTC/USDT", horizon=1)
+        
+        hit_rate = metrics.get("hit_rate", 0.0)
+        rank_ic = metrics.get("rank_ic", 0.0)
+        # Populate uppercase keys for legacy test compatibility
+        metrics["MAE"] = metrics.get("mae", 0.0)
+        metrics["RMSE"] = metrics.get("rmse", 0.0)
+        metrics["R2"] = metrics.get("r2", 0.0)
 
         # Quality contract assertions
         kpi_checks = {
-            "mae_ok": mae <= max_acceptable_mae,
-            "rmse_ok": rmse <= max_acceptable_rmse,
-            "mape_ok": mape <= max_acceptable_mape,
+            "hit_rate_ok": hit_rate >= min_acceptable_hit_rate,
+            "rank_ic_ok": rank_ic >= min_acceptable_ic,
         }
         passed_quality_gates = all(kpi_checks.values())
         status = "SUCCESS" if passed_quality_gates else "KPI_DEGRADATION"
@@ -53,18 +53,17 @@ def retrain_forecaster_model(
             "task": "model_retrain_task",
             "status": status,
             "promoted": passed_quality_gates,
-            "model_name": evaluation.get("model_name", "Unknown"),
+            "model_name": "alpha_BTC-USDT_1m",
             "metrics": metrics,
             "quality_gates": kpi_checks,
             "thresholds": {
-                "max_mae": max_acceptable_mae,
-                "max_rmse": max_acceptable_rmse,
-                "max_mape": max_acceptable_mape,
+                "min_hit_rate": min_acceptable_hit_rate,
+                "min_ic": min_acceptable_ic,
             },
             "duration_seconds": duration_s,
             "message": (
                 f"Model retraining completed with status {status} in {duration_s}s. "
-                f"Model: {evaluation.get('model_name')}, MAE: {mae} kW, RMSE: {rmse} kW, MAPE: {mape}%."
+                f"Model: alpha_BTC-USDT_1m, Hit Rate: {hit_rate}, Rank IC: {rank_ic}."
             ),
         }
 

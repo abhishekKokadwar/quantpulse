@@ -1,6 +1,6 @@
 """
-GridPulse Standalone Pipeline Runner & Orchestration Engine (Phase 9)
-Executes the full GridPulse DAG locally without requiring external Airflow daemons,
+QuantPulse Standalone Pipeline Runner & Orchestration Engine (Phase 9)
+Executes the full QuantPulse DAG locally without requiring external Airflow daemons,
 capturing task execution times, status codes, SLA compliance, and persisting run history.
 """
 
@@ -100,7 +100,7 @@ class PipelineRunner:
         webhook_url: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Executes the end-to-end GridPulse orchestration DAG:
+        Executes the end-to-end QuantPulse orchestration DAG:
         1. sensor_freshness_task
         2. lakehouse_compaction_task
         3. dbt_run_and_test_task
@@ -110,7 +110,7 @@ class PipelineRunner:
         pipeline_start = time.time()
         run_id = f"run_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
         print(f"\n{'='*70}")
-        print(f"[START] [GRIDPULSE PIPELINE RUNNER] Starting Run ID: {run_id}")
+        print(f"[START] [QUANTPULSE PIPELINE RUNNER] Starting Run ID: {run_id}")
         print(f"{'='*70}")
 
         task_results: Dict[str, Dict[str, Any]] = {}
@@ -199,13 +199,13 @@ class PipelineRunner:
         self._save_run_record(record)
 
         print(f"\n{'='*70}")
-        print(f"[DONE] [GRIDPULSE PIPELINE COMPLETED] Status: {overall_status} in {overall_duration}s")
+        print(f"[DONE] [QUANTPULSE PIPELINE COMPLETED] Status: {overall_status} in {overall_duration}s")
         print(f"{'='*70}\n")
         return record
 
 
 def main():
-    parser = argparse.ArgumentParser(description="GridPulse Standalone Pipeline Runner")
+    parser = argparse.ArgumentParser(description="QuantPulse Standalone Pipeline Runner")
     parser.add_argument("--run-all", action="store_true", help="Execute complete end-to-end pipeline")
     parser.add_argument("--task", type=str, choices=["freshness", "compaction", "dbt", "retrain", "sla"], help="Run individual task")
     parser.add_argument("--status", action="store_true", help="View recent pipeline run status")

@@ -98,8 +98,8 @@ def evaluate_sla_and_alert(
             title=title,
             color="#ef4444" if failed_tasks else "#f59e0b",
             fields=fields,
-            summary="The automated GridPulse orchestration pipeline detected task failures or SLA latency breaches.",
-            username="GridPulse Orchestrator",
+            summary="The automated QuantPulse orchestration pipeline detected task failures or SLA latency breaches.",
+            username="QuantPulse Orchestrator",
             icon_emoji=":rotating_light:" if failed_tasks else ":warning:",
         )
 

@@ -10,9 +10,14 @@ __pycache__/
 *.pyc
 
 # Local data & temporary caches
+*.db
+*.db-shm
+*.db-wal
 data/raw/
 data/processed/
 data/lake/checkpoints/
+data/lake/delta/
+data/lake/microstructure_aggregates/
 data/lake/raw_telemetry/_spark_metadata/
 data/lakehouse/*.duckdb*
 data/lakehouse/*.wal
@@ -24,4 +29,5 @@ dbt_lakehouse/.user.yml
 tmp/
 data/orchestration/
 
-
+.neon
+node_modules/
